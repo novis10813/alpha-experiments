@@ -26,7 +26,7 @@ class TradeFeatureTests(unittest.TestCase):
             resample_seconds=1,
         )
 
-        self.assertEqual([row.ts_event for row in rows], [1_900_000_000, 2_100_000_000])
+        self.assertEqual([row.ts_event for row in rows], [2_000_000_000, 3_000_000_000])
         self.assertEqual([row.price for row in rows], [101.0, 102.0])
         self.assertEqual([row.volume for row in rows], [1.75, 2.0])
         self.assertEqual([row.trade_count for row in rows], [2, 1])

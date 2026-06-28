@@ -1,29 +1,21 @@
 from __future__ import annotations
 
 import argparse
-import bisect
-import csv
 import html
 import json
 import statistics
 from dataclasses import dataclass
-from datetime import UTC
-from datetime import datetime
 from pathlib import Path
 
-
-@dataclass(frozen=True)
-class AlphaPoint:
-    ts_event: int
-    timestamp: str
-    value: float
-
-
-@dataclass(frozen=True)
-class FeaturePoint:
-    ts_event: int
-    price: float
-    trade_count: int
+from common.csv_io import AlphaPoint
+from common.csv_io import TradeFeaturePoint as FeaturePoint
+from common.csv_io import first_column_value
+from common.csv_io import read_alpha_points
+from common.csv_io import read_trade_feature_points
+from common.time_series import NS_PER_SECOND
+from common.time_series import index_at_or_after
+from common.time_series import index_at_or_before
+from reports.framework import write_html_report
 
 
 @dataclass(frozen=True)
@@ -74,11 +66,11 @@ def build_density_context(
     if bucket_count <= 1:
         raise ValueError("bucket_count must be greater than one")
 
-    alpha_points = _read_alpha_points(alpha_path)
+    alpha_points = read_alpha_points(alpha_path)
     if not alpha_points:
         raise RuntimeError(f"No alpha rows found in {alpha_path}")
 
-    feature_points = _read_feature_points(feature_path)
+    feature_points = read_trade_feature_points(feature_path)
     if not feature_points:
         raise RuntimeError(f"No feature rows found in {feature_path}")
     _raise_if_feature_data_too_sparse(feature_points, min(horizons))
@@ -90,8 +82,8 @@ def build_density_context(
     return DensityContext(
         alpha_source_path=alpha_path,
         feature_source_path=feature_path,
-        instrument_id=_first_column_value(alpha_path, "instrument_id"),
-        alpha_name=_first_column_value(alpha_path, "alpha_name"),
+        instrument_id=first_column_value(alpha_path, "instrument_id"),
+        alpha_name=first_column_value(alpha_path, "alpha_name"),
         horizons_seconds=horizons,
         row_count=len(alpha_points),
         joined_count=len(first_horizon_points),
@@ -101,8 +93,7 @@ def build_density_context(
 
 
 def write_density_report_html(context: DensityContext, output_path: Path) -> None:
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(render_density_report_html(context), encoding="utf-8")
+    write_html_report(context, output_path, render_density_report_html)
 
 
 def render_density_report_html(context: DensityContext) -> str:
@@ -277,16 +268,16 @@ def _joined_points(
     feature_times = [point.ts_event for point in feature_points]
     result: list[JoinedPoint] = []
     for alpha in alpha_points:
-        current_index = bisect.bisect_right(feature_times, alpha.ts_event) - 1
+        current_index = index_at_or_before(feature_times, alpha.ts_event)
         if current_index < 0:
             continue
         current_feature = feature_points[current_index]
         if current_feature.price == 0:
             continue
         for horizon_seconds in horizons_seconds:
-            future_index = bisect.bisect_left(
+            future_index = index_at_or_after(
                 feature_times,
-                alpha.ts_event + horizon_seconds * 1_000_000_000,
+                alpha.ts_event + horizon_seconds * NS_PER_SECOND,
             )
             if future_index >= len(feature_points):
                 continue
@@ -371,43 +362,12 @@ def _bucket_returns(points: list[JoinedPoint], bucket_count: int) -> list[float]
     return result
 
 
-def _read_alpha_points(source_path: Path) -> list[AlphaPoint]:
-    points: list[AlphaPoint] = []
-    with source_path.open("r", encoding="utf-8", newline="") as file:
-        reader = csv.DictReader(file)
-        for row in reader:
-            ts_event = int(row["ts_event"])
-            points.append(
-                AlphaPoint(
-                    ts_event=ts_event,
-                    timestamp=_ts_event_to_iso(ts_event),
-                    value=float(row["value"]),
-                ),
-            )
-    return sorted(points, key=lambda point: point.ts_event)
-
-
-def _read_feature_points(source_path: Path) -> list[FeaturePoint]:
-    points: list[FeaturePoint] = []
-    with source_path.open("r", encoding="utf-8", newline="") as file:
-        reader = csv.DictReader(file)
-        for row in reader:
-            points.append(
-                FeaturePoint(
-                    ts_event=int(row["ts_event"]),
-                    price=float(row["price"]),
-                    trade_count=int(row["trade_count"]),
-                ),
-            )
-    return sorted(points, key=lambda point: point.ts_event)
-
-
 def _raise_if_feature_data_too_sparse(feature_points: list[FeaturePoint], shortest_horizon_seconds: int) -> None:
     if len(feature_points) < 2:
         raise RuntimeError("Feature data is too sparse: at least two rows are required")
 
     gaps_seconds = [
-        (current.ts_event - previous.ts_event) / 1_000_000_000
+        (current.ts_event - previous.ts_event) / NS_PER_SECOND
         for previous, current in zip(feature_points, feature_points[1:])
     ]
     median_gap_seconds = statistics.median(gaps_seconds)
@@ -417,19 +377,6 @@ def _raise_if_feature_data_too_sparse(feature_points: list[FeaturePoint], shorte
             f"median gap is {median_gap_seconds:.3f}s but shortest horizon is "
             f"{shortest_horizon_seconds}s.",
         )
-
-
-def _first_column_value(source_path: Path, column: str) -> str:
-    with source_path.open("r", encoding="utf-8", newline="") as file:
-        reader = csv.DictReader(file)
-        first = next(reader, None)
-        if first is None:
-            return ""
-        return first[column]
-
-
-def _ts_event_to_iso(ts_event: int) -> str:
-    return datetime.fromtimestamp(ts_event / 1_000_000_000, UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _summary_payload(summary: RegimeSummary) -> dict[str, int | str | float]:

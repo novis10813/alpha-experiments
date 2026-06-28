@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import argparse
-import csv
-from dataclasses import asdict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
+from common.csv_io import write_dataclass_csv
+from common.resampling import resample_last_by_bucket
 from data.nautilus_catalog import make_catalog
 from nautilus_trader.model.data import OrderBookDepth10
 
@@ -54,16 +54,11 @@ def load_orderbook_quotes(
 
 
 def write_quote_rows_csv(rows: Iterable[QuoteRow], output_path: Path) -> int:
-    output_rows = [asdict(row) for row in rows]
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with output_path.open("w", encoding="utf-8", newline="") as file:
-        writer = csv.DictWriter(
-            file,
-            fieldnames=["ts_event", "instrument_id", "bid", "ask", "mid", "spread", "spread_bps"],
-        )
-        writer.writeheader()
-        writer.writerows(output_rows)
-    return len(output_rows)
+    return write_dataclass_csv(
+        rows,
+        output_path,
+        ["ts_event", "instrument_id", "bid", "ask", "mid", "spread", "spread_bps"],
+    )
 
 
 def _quote_row_for(depth: object) -> QuoteRow:
@@ -91,30 +86,12 @@ def _best_price(levels: Iterable[object]) -> float:
 
 
 def _resample_quotes(rows: list[QuoteRow], interval_seconds: int) -> list[QuoteRow]:
-    interval_ns = interval_seconds * 1_000_000_000
-    result: list[QuoteRow] = []
-    current_bucket: int | None = None
-    current_quote: QuoteRow | None = None
-    previous_quote: QuoteRow | None = None
-
-    for row in rows:
-        bucket = row.ts_event // interval_ns
-        if current_bucket is not None and bucket != current_bucket and current_quote is not None:
-            previous_quote = _quote_at_bucket_end(current_quote, current_bucket, interval_ns)
-            result.append(previous_quote)
-            for empty_bucket in range(current_bucket + 1, bucket):
-                result.append(_quote_at_bucket_end(previous_quote, empty_bucket, interval_ns))
-        current_bucket = bucket
-        current_quote = row
-
-    if current_bucket is not None and current_quote is not None:
-        result.append(_quote_at_bucket_end(current_quote, current_bucket, interval_ns))
-    return result
+    return resample_last_by_bucket(rows, interval_seconds, lambda row: row.ts_event, _quote_at_ts_event)
 
 
-def _quote_at_bucket_end(row: QuoteRow, bucket: int, interval_ns: int) -> QuoteRow:
+def _quote_at_ts_event(row: QuoteRow, ts_event: int) -> QuoteRow:
     return QuoteRow(
-        ts_event=(bucket + 1) * interval_ns,
+        ts_event=ts_event,
         instrument_id=row.instrument_id,
         bid=row.bid,
         ask=row.ask,

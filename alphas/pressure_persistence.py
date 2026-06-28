@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import argparse
-import bisect
-import csv
-from dataclasses import asdict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
+
+from common.csv_io import read_alpha_points
+from common.csv_io import read_trade_feature_points
+from common.csv_io import write_dataclass_csv
+from common.time_series import NS_PER_SECOND
+from common.time_series import index_at_or_before
+from common.time_series import sign
 
 
 DEFAULT_ALPHA_NAME = "confirmed_pressure_persistence_1m"
@@ -18,19 +22,6 @@ class AlphaSignal:
     instrument_id: str
     alpha_name: str
     value: float
-
-
-@dataclass(frozen=True)
-class AlphaPoint:
-    ts_event: int
-    instrument_id: str
-    value: float
-
-
-@dataclass(frozen=True)
-class FeaturePoint:
-    ts_event: int
-    flow_value: float
 
 
 def build_confirmed_pressure_signals(
@@ -45,19 +36,19 @@ def build_confirmed_pressure_signals(
     if flow_column not in {"trade_imbalance", "volume_imbalance"}:
         raise ValueError("flow_column must be trade_imbalance or volume_imbalance")
 
-    alpha_points = _read_alpha_points(alpha_path)
-    feature_points = _read_feature_points(feature_path, flow_column)
+    alpha_points = read_alpha_points(alpha_path)
+    feature_points = read_trade_feature_points(feature_path, flow_column)
     if not alpha_points or not feature_points:
         return []
 
-    interval_ns = bucket_seconds * 1_000_000_000
+    interval_ns = bucket_seconds * NS_PER_SECOND
     feature_times = [point.ts_event for point in feature_points]
     bucket_sums: dict[int, float] = {}
     bucket_counts: dict[int, int] = {}
     bucket_instruments: dict[int, str] = {}
 
     for alpha in alpha_points:
-        feature_index = bisect.bisect_right(feature_times, alpha.ts_event) - 1
+        feature_index = index_at_or_before(feature_times, alpha.ts_event)
         if feature_index < 0:
             continue
         bucket = alpha.ts_event // interval_ns
@@ -82,21 +73,12 @@ def build_confirmed_pressure_signals(
 
 
 def write_signals_csv(signals: Iterable[AlphaSignal], output_path: Path) -> int:
-    rows = [asdict(signal) for signal in signals]
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with output_path.open("w", encoding="utf-8", newline="") as file:
-        writer = csv.DictWriter(
-            file,
-            fieldnames=["ts_event", "instrument_id", "alpha_name", "value"],
-        )
-        writer.writeheader()
-        writer.writerows(rows)
-    return len(rows)
+    return write_dataclass_csv(signals, output_path, ["ts_event", "instrument_id", "alpha_name", "value"])
 
 
 def _confirmed_pressure_contribution(book_value: float, flow_value: float) -> float:
-    book_sign = _sign(book_value)
-    flow_sign = _sign(flow_value)
+    book_sign = sign(book_value)
+    flow_sign = sign(flow_value)
     if book_sign > 0 and flow_sign > 0:
         return 1.0
     if book_sign < 0 and flow_sign < 0:
@@ -104,48 +86,10 @@ def _confirmed_pressure_contribution(book_value: float, flow_value: float) -> fl
     return 0.0
 
 
-def _sign(value: float) -> int:
-    if value > 0:
-        return 1
-    if value < 0:
-        return -1
-    return 0
-
-
 def _alpha_name_for(bucket_seconds: int) -> str:
     if bucket_seconds % 60 == 0:
         return f"confirmed_pressure_persistence_{bucket_seconds // 60}m"
     return f"confirmed_pressure_persistence_{bucket_seconds}s"
-
-
-def _read_alpha_points(source_path: Path) -> list[AlphaPoint]:
-    points: list[AlphaPoint] = []
-    with source_path.open("r", encoding="utf-8", newline="") as file:
-        reader = csv.DictReader(file)
-        for row in reader:
-            points.append(
-                AlphaPoint(
-                    ts_event=int(row["ts_event"]),
-                    instrument_id=row["instrument_id"],
-                    value=float(row["value"]),
-                ),
-            )
-    return sorted(points, key=lambda point: point.ts_event)
-
-
-def _read_feature_points(source_path: Path, flow_column: str) -> list[FeaturePoint]:
-    points: list[FeaturePoint] = []
-    with source_path.open("r", encoding="utf-8", newline="") as file:
-        reader = csv.DictReader(file)
-        for row in reader:
-            points.append(
-                FeaturePoint(
-                    ts_event=int(row["ts_event"]),
-                    flow_value=float(row[flow_column]),
-                ),
-            )
-    return sorted(points, key=lambda point: point.ts_event)
-
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(

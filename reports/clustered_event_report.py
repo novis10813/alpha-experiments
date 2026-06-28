@@ -1,28 +1,22 @@
 from __future__ import annotations
 
 import argparse
-import bisect
-import csv
 import html
 import json
 import statistics
 from dataclasses import dataclass
 from pathlib import Path
 
-
-@dataclass(frozen=True)
-class AlphaPoint:
-    ts_event: int
-    value: float
-
-
-@dataclass(frozen=True)
-class QuotePoint:
-    ts_event: int
-    bid: float
-    ask: float
-    mid: float
-    spread_bps: float
+from common.csv_io import AlphaPoint
+from common.csv_io import QuotePoint
+from common.csv_io import first_column_value
+from common.csv_io import read_alpha_points
+from common.csv_io import read_quote_points
+from common.execution import net_return
+from common.execution import quote_execution_return
+from common.time_series import NS_PER_SECOND
+from common.time_series import index_at_or_after
+from reports.framework import write_html_report
 
 
 @dataclass(frozen=True)
@@ -79,10 +73,10 @@ def build_clustered_event_context(
     if cost_bps < 0:
         raise ValueError("cost_bps must be non-negative")
 
-    alpha_points = _read_alpha_points(alpha_path)
+    alpha_points = read_alpha_points(alpha_path)
     if not alpha_points:
         raise RuntimeError(f"No alpha rows found in {alpha_path}")
-    quote_points = _read_quote_points(quote_path)
+    quote_points = read_quote_points(quote_path)
     if not quote_points:
         raise RuntimeError(f"No quote rows found in {quote_path}")
 
@@ -101,8 +95,8 @@ def build_clustered_event_context(
     return ClusteredEventContext(
         alpha_source_path=alpha_path,
         quote_source_path=quote_path,
-        instrument_id=_first_column_value(alpha_path, "instrument_id"),
-        alpha_name=_first_column_value(alpha_path, "alpha_name"),
+        instrument_id=first_column_value(alpha_path, "instrument_id"),
+        alpha_name=first_column_value(alpha_path, "alpha_name"),
         row_count=len(alpha_points),
         raw_extreme_count=raw_extreme_count,
         cluster_count=len(clusters),
@@ -114,8 +108,7 @@ def build_clustered_event_context(
 
 
 def write_clustered_event_report_html(context: ClusteredEventContext, output_path: Path) -> None:
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(render_clustered_event_report_html(context), encoding="utf-8")
+    write_html_report(context, output_path, render_clustered_event_report_html)
 
 
 def render_clustered_event_report_html(context: ClusteredEventContext) -> str:
@@ -261,11 +254,11 @@ def _summary_for(
     abs_values: list[float] = []
     side = 1 if side_name == "positive" else -1
     for cluster in clusters:
-        entry_index = bisect.bisect_left(quote_times, cluster.ts_event)
+        entry_index = index_at_or_after(quote_times, cluster.ts_event)
         if entry_index >= len(quote_points):
             continue
-        exit_time = quote_points[entry_index].ts_event + horizon_seconds * 1_000_000_000
-        exit_index = bisect.bisect_left(quote_times, exit_time)
+        exit_time = quote_points[entry_index].ts_event + horizon_seconds * NS_PER_SECOND
+        exit_index = index_at_or_after(quote_times, exit_time)
         if exit_index >= len(quote_points):
             continue
         gross_returns.append(_gross_return(side, quote_points[entry_index], quote_points[exit_index]))
@@ -273,7 +266,7 @@ def _summary_for(
         abs_values.append(cluster.max_abs_value)
     if not gross_returns:
         return ClusterSummary(threshold, side_name, horizon_seconds, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-    net_returns = [value - cost_bps / 10_000 for value in gross_returns]
+    net_returns = [net_return(value, cost_bps) for value in gross_returns]
     return ClusterSummary(
         threshold=threshold,
         side=side_name,
@@ -289,9 +282,7 @@ def _summary_for(
 
 
 def _gross_return(side: int, entry_quote: QuotePoint, exit_quote: QuotePoint) -> float:
-    if side > 0:
-        return (exit_quote.bid / entry_quote.ask) - 1
-    return (entry_quote.bid / exit_quote.ask) - 1
+    return quote_execution_return(side, entry_quote, exit_quote)
 
 
 def _extreme_side(value: float, threshold: float) -> int:
@@ -300,41 +291,6 @@ def _extreme_side(value: float, threshold: float) -> int:
     if value <= -threshold:
         return -1
     return 0
-
-
-def _read_alpha_points(source_path: Path) -> list[AlphaPoint]:
-    points: list[AlphaPoint] = []
-    with source_path.open("r", encoding="utf-8", newline="") as file:
-        reader = csv.DictReader(file)
-        for row in reader:
-            points.append(AlphaPoint(ts_event=int(row["ts_event"]), value=float(row["value"])))
-    return sorted(points, key=lambda point: point.ts_event)
-
-
-def _read_quote_points(source_path: Path) -> list[QuotePoint]:
-    points: list[QuotePoint] = []
-    with source_path.open("r", encoding="utf-8", newline="") as file:
-        reader = csv.DictReader(file)
-        for row in reader:
-            points.append(
-                QuotePoint(
-                    ts_event=int(row["ts_event"]),
-                    bid=float(row["bid"]),
-                    ask=float(row["ask"]),
-                    mid=float(row["mid"]),
-                    spread_bps=float(row["spread_bps"]),
-                ),
-            )
-    return sorted(points, key=lambda point: point.ts_event)
-
-
-def _first_column_value(source_path: Path, column: str) -> str:
-    with source_path.open("r", encoding="utf-8", newline="") as file:
-        reader = csv.DictReader(file)
-        first = next(reader, None)
-        if first is None:
-            return ""
-        return first[column]
 
 
 def _summary_payload(summary: ClusterSummary) -> dict[str, int | float | str]:

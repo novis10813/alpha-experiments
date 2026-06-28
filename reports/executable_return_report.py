@@ -1,31 +1,25 @@
 from __future__ import annotations
 
 import argparse
-import bisect
-import csv
 import html
 import json
 import statistics
 from dataclasses import dataclass
 from dataclasses import field
-from datetime import UTC
-from datetime import datetime
 from pathlib import Path
 
-
-@dataclass(frozen=True)
-class AlphaPoint:
-    ts_event: int
-    value: float
-
-
-@dataclass(frozen=True)
-class QuotePoint:
-    ts_event: int
-    bid: float
-    ask: float
-    mid: float
-    spread_bps: float
+from common.csv_io import AlphaPoint
+from common.csv_io import QuotePoint
+from common.csv_io import first_column_value
+from common.csv_io import read_alpha_points
+from common.csv_io import read_quote_points
+from common.execution import net_return
+from common.execution import quote_execution_return
+from common.execution import side_from_alpha
+from common.time_series import NS_PER_SECOND
+from common.time_series import index_at_or_after
+from common.time_series import ts_event_to_iso
+from reports.framework import write_html_report
 
 
 @dataclass(frozen=True)
@@ -109,10 +103,10 @@ def build_executable_return_context(
     if max_points <= 0:
         raise ValueError("max_points must be positive")
 
-    alpha_points = _read_alpha_points(alpha_path)
+    alpha_points = read_alpha_points(alpha_path)
     if not alpha_points:
         raise RuntimeError(f"No alpha rows found in {alpha_path}")
-    quote_points = _read_quote_points(quote_path)
+    quote_points = read_quote_points(quote_path)
     if not quote_points:
         raise RuntimeError(f"No quote rows found in {quote_path}")
 
@@ -127,8 +121,8 @@ def build_executable_return_context(
     return ExecutableReturnContext(
         alpha_source_path=alpha_path,
         quote_source_path=quote_path,
-        instrument_id=_first_column_value(alpha_path, "instrument_id"),
-        alpha_name=_first_column_value(alpha_path, "alpha_name"),
+        instrument_id=first_column_value(alpha_path, "instrument_id"),
+        alpha_name=first_column_value(alpha_path, "alpha_name"),
         row_count=len(alpha_points),
         horizons_seconds=horizons,
         delay_seconds=delays,
@@ -142,8 +136,7 @@ def write_executable_return_report_html(
     context: ExecutableReturnContext,
     output_path: Path,
 ) -> None:
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(render_executable_return_report_html(context), encoding="utf-8")
+    write_html_report(context, output_path, render_executable_return_report_html)
 
 
 def render_executable_return_report_html(context: ExecutableReturnContext) -> str:
@@ -304,16 +297,16 @@ def _points_and_summaries(
         for cost in cost_bps
     }
     for alpha in alpha_points:
-        side = _sign(alpha.value)
+        side = side_from_alpha(alpha.value)
         for delay in delay_seconds:
-            entry_time = alpha.ts_event + delay * 1_000_000_000
-            entry_index = bisect.bisect_left(quote_times, entry_time)
+            entry_time = alpha.ts_event + delay * NS_PER_SECOND
+            entry_index = index_at_or_after(quote_times, entry_time)
             if entry_index >= len(quote_points):
                 continue
             entry_quote = quote_points[entry_index]
             for horizon in horizons_seconds:
-                exit_time = entry_quote.ts_event + horizon * 1_000_000_000
-                exit_index = bisect.bisect_left(quote_times, exit_time)
+                exit_time = entry_quote.ts_event + horizon * NS_PER_SECOND
+                exit_index = index_at_or_after(quote_times, exit_time)
                 if exit_index >= len(quote_points):
                     continue
                 exit_quote = quote_points[exit_index]
@@ -326,7 +319,7 @@ def _points_and_summaries(
                     sampled_points.append(
                         ExecutableReturnPoint(
                             ts_event=alpha.ts_event,
-                            timestamp=_format_utc(alpha.ts_event),
+                            timestamp=ts_event_to_iso(alpha.ts_event),
                             alpha_value=alpha.value,
                             side=side,
                             horizon_seconds=horizon,
@@ -338,7 +331,7 @@ def _points_and_summaries(
                             exit_price=exit_price,
                             entry_spread_bps=entry_quote.spread_bps,
                             gross_return=gross_return,
-                            net_return=gross_return - cost_bps[0] / 10_000,
+                            net_return=net_return(gross_return, cost_bps[0]),
                         ),
                     )
                 for cost in cost_bps:
@@ -363,13 +356,13 @@ def _add_to_accumulator(
     entry_spread_bps: float,
     cost_bps: float,
 ) -> None:
-    net_return = gross_return - cost_bps / 10_000
+    adjusted_return = net_return(gross_return, cost_bps)
     accumulator.count += 1
     accumulator.gross_sum += gross_return
-    accumulator.net_sum += net_return
+    accumulator.net_sum += adjusted_return
     accumulator.spread_sum += entry_spread_bps
-    accumulator.net_returns.append(net_return)
-    if net_return > 0:
+    accumulator.net_returns.append(adjusted_return)
+    if adjusted_return > 0:
         accumulator.hit_count += 1
 
 
@@ -412,59 +405,12 @@ def _trade_prices_and_return(
     if side > 0:
         entry_price = entry_quote.ask
         exit_price = exit_quote.bid
-        return entry_price, exit_price, (exit_price / entry_price) - 1
+        return entry_price, exit_price, quote_execution_return(side, entry_quote, exit_quote)
     if side < 0:
         entry_price = entry_quote.bid
         exit_price = exit_quote.ask
-        return entry_price, exit_price, (entry_price / exit_price) - 1
+        return entry_price, exit_price, quote_execution_return(side, entry_quote, exit_quote)
     return entry_quote.mid, exit_quote.mid, 0.0
-
-
-def _read_alpha_points(source_path: Path) -> list[AlphaPoint]:
-    points: list[AlphaPoint] = []
-    with source_path.open("r", encoding="utf-8", newline="") as file:
-        reader = csv.DictReader(file)
-        for row in reader:
-            points.append(AlphaPoint(ts_event=int(row["ts_event"]), value=float(row["value"])))
-    return sorted(points, key=lambda point: point.ts_event)
-
-
-def _read_quote_points(source_path: Path) -> list[QuotePoint]:
-    points: list[QuotePoint] = []
-    with source_path.open("r", encoding="utf-8", newline="") as file:
-        reader = csv.DictReader(file)
-        for row in reader:
-            points.append(
-                QuotePoint(
-                    ts_event=int(row["ts_event"]),
-                    bid=float(row["bid"]),
-                    ask=float(row["ask"]),
-                    mid=float(row["mid"]),
-                    spread_bps=float(row["spread_bps"]),
-                ),
-            )
-    return sorted(points, key=lambda point: point.ts_event)
-
-
-def _first_column_value(source_path: Path, column: str) -> str:
-    with source_path.open("r", encoding="utf-8", newline="") as file:
-        reader = csv.DictReader(file)
-        first = next(reader, None)
-        if first is None:
-            return ""
-        return first[column]
-
-
-def _sign(value: float) -> int:
-    if value > 0:
-        return 1
-    if value < 0:
-        return -1
-    return 0
-
-
-def _format_utc(ts_event: int) -> str:
-    return datetime.fromtimestamp(ts_event / 1_000_000_000, UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _summary_payload(summary: ExecutableSummary) -> dict[str, int | float]:

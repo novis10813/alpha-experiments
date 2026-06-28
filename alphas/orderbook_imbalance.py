@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import csv
-from dataclasses import asdict
 from dataclasses import dataclass
 from datetime import UTC
 from datetime import datetime
@@ -10,6 +8,7 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Iterable
 
+from common.csv_io import write_dataclass_csv
 from data.nautilus_catalog import make_catalog
 from nautilus_trader.model.data import OrderBookDepth10
 
@@ -90,16 +89,7 @@ def load_past_week_orderbook_imbalance(
 
 
 def write_signals_csv(signals: Iterable[AlphaSignal], output_path: Path) -> int:
-    rows = [asdict(signal) for signal in signals]
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with output_path.open("w", encoding="utf-8", newline="") as file:
-        writer = csv.DictWriter(
-            file,
-            fieldnames=["ts_event", "instrument_id", "alpha_name", "value"],
-        )
-        writer.writeheader()
-        writer.writerows(rows)
-    return len(rows)
+    return write_dataclass_csv(signals, output_path, ["ts_event", "instrument_id", "alpha_name", "value"])
 
 
 def _format_utc(value: datetime) -> str:

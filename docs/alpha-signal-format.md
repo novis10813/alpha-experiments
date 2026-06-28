@@ -30,6 +30,17 @@ before 10:01:00.
 When there is ambiguity, prefer the conservative timestamp: the earliest time at
 which all inputs used by the signal are actually available.
 
+### Case Study: Lookahead Bias in Resampled Data
+
+When resampling high-frequency data into fixed-width time buckets (e.g., 1-second or 1-minute intervals) for feature engineering, the generated timestamps must be handled with care.
+
+A common pitfall is marking the output row's timestamp (`ts_event`) using the **timestamp of the last tick** inside the bucket (e.g., a trade tick at `10:00:58` within the `[10:00:00, 10:01:00)` interval), rather than the **bucket end time** (`10:01:00`).
+
+In historical analysis, a signal generator processing an update at `10:00:59` would use binary search (`bisect_right`) to look up the latest available market feature. Since `10:00:59 >= 10:00:58`, it would retrieve the feature row for that bucket. However, the complete features of the `[10:00:00, 10:01:00)` bucket are not physically knowable in real-time until the bucket actually ends at `10:01:00`. This leaks future transaction information into the signal generator, creating **lookahead bias**.
+
+**Rule of Thumb:**
+For any aggregated or resampled data, the `ts_event` must always be marked as the **end of the aggregation interval** (i.e., `(bucket + 1) * interval`).
+
 ## What does not belong in the core signal
 
 The core alpha table should stay narrow. These fields are useful, but they are

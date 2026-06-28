@@ -403,9 +403,11 @@ def _regime_groups(events: list[Event]) -> dict[str, list[Event]]:
 
 
 def _forward_returns(events: list[Event], bars: list[Kbar], horizon_minutes: int) -> list[float]:
+    bar_times = [bar.ts_event for bar in bars]
     returns: list[float] = []
     for event in events:
-        future_index = event.trigger_index + horizon_minutes
+        future_ts = event.ts_event + horizon_minutes * 60 * 1_000_000_000
+        future_index = bisect.bisect_left(bar_times, future_ts)
         if future_index >= len(bars):
             continue
         if bars[event.trigger_index].close == 0:

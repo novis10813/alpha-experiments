@@ -1,28 +1,21 @@
 from __future__ import annotations
 
 import argparse
-import bisect
-import csv
 import html
 import json
 import statistics
 from dataclasses import dataclass
-from datetime import UTC
-from datetime import datetime
 from pathlib import Path
 
-
-@dataclass(frozen=True)
-class AlphaPoint:
-    ts_event: int
-    timestamp: str
-    value: float
-
-
-@dataclass(frozen=True)
-class PricePoint:
-    ts_event: int
-    price: float
+from common.csv_io import AlphaPoint
+from common.csv_io import PricePoint
+from common.csv_io import first_column_value
+from common.csv_io import read_alpha_points
+from common.csv_io import read_price_points
+from common.time_series import NS_PER_SECOND
+from common.time_series import index_at_or_after
+from common.time_series import index_at_or_before
+from reports.framework import write_html_report
 
 
 @dataclass(frozen=True)
@@ -63,11 +56,11 @@ def build_extreme_context(
     if not horizons:
         raise ValueError("horizons_seconds must not be empty")
 
-    alpha_points = _read_alpha_points(alpha_path)
+    alpha_points = read_alpha_points(alpha_path)
     if not alpha_points:
         raise RuntimeError(f"No alpha rows found in {alpha_path}")
 
-    price_points = _read_price_points(price_path)
+    price_points = read_price_points(price_path)
     if not price_points:
         raise RuntimeError(f"No price rows found in {price_path}")
     _raise_if_price_data_too_sparse(price_points, min(horizons))
@@ -75,8 +68,8 @@ def build_extreme_context(
     return ExtremeContext(
         alpha_source_path=alpha_path,
         price_source_path=price_path,
-        instrument_id=_first_column_value(alpha_path, "instrument_id"),
-        alpha_name=_first_column_value(alpha_path, "alpha_name"),
+        instrument_id=first_column_value(alpha_path, "instrument_id"),
+        alpha_name=first_column_value(alpha_path, "alpha_name"),
         thresholds=threshold_values,
         horizons_seconds=horizons,
         row_count=len(alpha_points),
@@ -85,8 +78,7 @@ def build_extreme_context(
 
 
 def write_extreme_report_html(context: ExtremeContext, output_path: Path) -> None:
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(render_extreme_report_html(context), encoding="utf-8")
+    write_html_report(context, output_path, render_extreme_report_html)
 
 
 def render_extreme_report_html(context: ExtremeContext) -> str:
@@ -299,7 +291,7 @@ def _event_returns(
     for event in events:
         current_price = _price_at_or_before(event.ts_event, price_points, price_times)
         future_price = _price_at_or_after(
-            event.ts_event + horizon_seconds * 1_000_000_000,
+            event.ts_event + horizon_seconds * NS_PER_SECOND,
             price_points,
             price_times,
         )
@@ -349,7 +341,7 @@ def _price_at_or_before(
     price_points: list[PricePoint],
     price_times: list[int],
 ) -> float | None:
-    index = bisect.bisect_right(price_times, ts_event) - 1
+    index = index_at_or_before(price_times, ts_event)
     if index < 0:
         return None
     return price_points[index].price
@@ -360,7 +352,7 @@ def _price_at_or_after(
     price_points: list[PricePoint],
     price_times: list[int],
 ) -> float | None:
-    index = bisect.bisect_left(price_times, ts_event)
+    index = index_at_or_after(price_times, ts_event)
     if index >= len(price_points):
         return None
     return price_points[index].price
@@ -371,7 +363,7 @@ def _raise_if_price_data_too_sparse(price_points: list[PricePoint], shortest_hor
         raise RuntimeError("Price data is too sparse: at least two price rows are required")
 
     gaps_seconds = [
-        (current.ts_event - previous.ts_event) / 1_000_000_000
+        (current.ts_event - previous.ts_event) / NS_PER_SECOND
         for previous, current in zip(price_points, price_points[1:])
     ]
     median_gap_seconds = statistics.median(gaps_seconds)
@@ -381,49 +373,6 @@ def _raise_if_price_data_too_sparse(price_points: list[PricePoint], shortest_hor
             f"median price gap is {median_gap_seconds:.3f}s but shortest horizon is "
             f"{shortest_horizon_seconds}s.",
         )
-
-
-def _read_alpha_points(source_path: Path) -> list[AlphaPoint]:
-    points: list[AlphaPoint] = []
-    with source_path.open("r", encoding="utf-8", newline="") as file:
-        reader = csv.DictReader(file)
-        for row in reader:
-            ts_event = int(row["ts_event"])
-            points.append(
-                AlphaPoint(
-                    ts_event=ts_event,
-                    timestamp=_ts_event_to_iso(ts_event),
-                    value=float(row["value"]),
-                ),
-            )
-    return sorted(points, key=lambda point: point.ts_event)
-
-
-def _read_price_points(source_path: Path) -> list[PricePoint]:
-    points: list[PricePoint] = []
-    with source_path.open("r", encoding="utf-8", newline="") as file:
-        reader = csv.DictReader(file)
-        for row in reader:
-            points.append(
-                PricePoint(
-                    ts_event=int(row["ts_event"]),
-                    price=float(row["price"]),
-                ),
-            )
-    return sorted(points, key=lambda point: point.ts_event)
-
-
-def _first_column_value(source_path: Path, column: str) -> str:
-    with source_path.open("r", encoding="utf-8", newline="") as file:
-        reader = csv.DictReader(file)
-        first = next(reader, None)
-        if first is None:
-            return ""
-        return first[column]
-
-
-def _ts_event_to_iso(ts_event: int) -> str:
-    return datetime.fromtimestamp(ts_event / 1_000_000_000, UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _summary_payload(summary: ExtremeSummary) -> dict[str, int | str | float]:

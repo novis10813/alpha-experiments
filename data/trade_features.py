@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import argparse
-import csv
-from dataclasses import asdict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
+from common.csv_io import write_dataclass_csv
+from common.resampling import bucket_end_ts
+from common.time_series import NS_PER_SECOND
 from data.nautilus_catalog import make_catalog
 from nautilus_trader.model.identifiers import InstrumentId
 
@@ -38,7 +39,7 @@ def trade_ticks_to_feature_rows(
     if resample_seconds <= 0:
         raise ValueError("resample_seconds must be positive")
 
-    interval_ns = resample_seconds * 1_000_000_000
+    interval_ns = resample_seconds * NS_PER_SECOND
     rows: list[TradeFeatureRow] = []
     current_bucket: int | None = None
     current_tick: object | None = None
@@ -53,18 +54,36 @@ def trade_ticks_to_feature_rows(
 
     for tick in trade_ticks:
         bucket = getattr(tick, "ts_event") // interval_ns
-        if current_bucket is not None and bucket != current_bucket and current_tick is not None:
+        if current_bucket is not None and bucket != current_bucket:
+            # Output the accumulated bucket
             rows.append(
                 _feature_row(
-                    current_tick,
-                    current_volume,
-                    current_trade_count,
-                    current_buy_trade_count,
-                    current_sell_trade_count,
-                    current_buy_volume,
-                    current_sell_volume,
+                    ts_event=bucket_end_ts(current_bucket, interval_ns),
+                    instrument_id=str(getattr(current_tick, "instrument_id")),
+                    price=previous_price if previous_price is not None else 0.0,
+                    volume=current_volume,
+                    trade_count=current_trade_count,
+                    buy_trade_count=current_buy_trade_count,
+                    sell_trade_count=current_sell_trade_count,
+                    buy_volume=current_buy_volume,
+                    sell_volume=current_sell_volume,
                 ),
             )
+            # Fill missing empty buckets between current_bucket and bucket
+            for empty_bucket in range(current_bucket + 1, bucket):
+                rows.append(
+                    _feature_row(
+                        ts_event=bucket_end_ts(empty_bucket, interval_ns),
+                        instrument_id=str(getattr(current_tick, "instrument_id")),
+                        price=previous_price if previous_price is not None else 0.0,
+                        volume=0.0,
+                        trade_count=0,
+                        buy_trade_count=0,
+                        sell_trade_count=0,
+                        buy_volume=0.0,
+                        sell_volume=0.0,
+                    ),
+                )
             current_volume = 0.0
             current_trade_count = 0
             current_buy_trade_count = 0
@@ -87,16 +106,18 @@ def trade_ticks_to_feature_rows(
         previous_price = price
         previous_sign = sign
 
-    if current_tick is not None:
+    if current_bucket is not None and current_tick is not None:
         rows.append(
             _feature_row(
-                current_tick,
-                current_volume,
-                current_trade_count,
-                current_buy_trade_count,
-                current_sell_trade_count,
-                current_buy_volume,
-                current_sell_volume,
+                ts_event=bucket_end_ts(current_bucket, interval_ns),
+                instrument_id=str(getattr(current_tick, "instrument_id")),
+                price=previous_price if previous_price is not None else 0.0,
+                volume=current_volume,
+                trade_count=current_trade_count,
+                buy_trade_count=current_buy_trade_count,
+                sell_trade_count=current_sell_trade_count,
+                buy_volume=current_buy_volume,
+                sell_volume=current_sell_volume,
             ),
         )
     return rows
@@ -118,34 +139,31 @@ def load_trade_features(
 
 
 def write_feature_rows_csv(rows: Iterable[TradeFeatureRow], output_path: Path) -> int:
-    output_rows = [asdict(row) for row in rows]
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with output_path.open("w", encoding="utf-8", newline="") as file:
-        writer = csv.DictWriter(
-            file,
-            fieldnames=[
-                "ts_event",
-                "instrument_id",
-                "price",
-                "volume",
-                "trade_count",
-                "buy_trade_count",
-                "sell_trade_count",
-                "buy_volume",
-                "sell_volume",
-                "signed_trade_count",
-                "signed_volume",
-                "trade_imbalance",
-                "volume_imbalance",
-            ],
-        )
-        writer.writeheader()
-        writer.writerows(output_rows)
-    return len(output_rows)
+    return write_dataclass_csv(
+        rows,
+        output_path,
+        [
+            "ts_event",
+            "instrument_id",
+            "price",
+            "volume",
+            "trade_count",
+            "buy_trade_count",
+            "sell_trade_count",
+            "buy_volume",
+            "sell_volume",
+            "signed_trade_count",
+            "signed_volume",
+            "trade_imbalance",
+            "volume_imbalance",
+        ],
+    )
 
 
 def _feature_row(
-    tick: object,
+    ts_event: int,
+    instrument_id: str,
+    price: float,
     volume: float,
     trade_count: int,
     buy_trade_count: int,
@@ -156,9 +174,9 @@ def _feature_row(
     signed_trade_count = buy_trade_count - sell_trade_count
     signed_volume = buy_volume - sell_volume
     return TradeFeatureRow(
-        ts_event=getattr(tick, "ts_event"),
-        instrument_id=str(getattr(tick, "instrument_id")),
-        price=_price(tick),
+        ts_event=ts_event,
+        instrument_id=instrument_id,
+        price=price,
         volume=volume,
         trade_count=trade_count,
         buy_trade_count=buy_trade_count,

@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import argparse
-import csv
-from dataclasses import asdict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
+from common.csv_io import write_dataclass_csv
+from common.resampling import resample_last_by_bucket
+from common.time_series import downsample
 from data.nautilus_catalog import make_catalog
 from nautilus_trader.model.identifiers import InstrumentId
 
@@ -24,19 +25,29 @@ class PriceRow:
 def trade_ticks_to_price_rows(
     trade_ticks: Iterable[object],
     max_rows: int | None = None,
+    resample_seconds: int | None = None,
 ) -> list[PriceRow]:
-    ticks = list(trade_ticks)
-    if max_rows is not None:
-        ticks = _downsample(ticks, max_rows)
-
-    return [
-        PriceRow(
-            ts_event=getattr(tick, "ts_event"),
-            instrument_id=str(getattr(tick, "instrument_id")),
-            price=float(str(getattr(tick, "price"))),
+    if resample_seconds is not None:
+        ticks = resample_last_by_bucket(
+            trade_ticks,
+            resample_seconds,
+            lambda tick: getattr(tick, "ts_event"),
+            _price_row_at_ts_event,
         )
-        for tick in ticks
-    ]
+    else:
+        ticks = [
+            PriceRow(
+                ts_event=getattr(tick, "ts_event"),
+                instrument_id=str(getattr(tick, "instrument_id")),
+                price=float(str(getattr(tick, "price"))),
+            )
+            for tick in trade_ticks
+        ]
+
+    if max_rows is not None:
+        ticks = downsample(ticks, max_rows)
+
+    return ticks
 
 
 def load_trade_prices(
@@ -44,6 +55,7 @@ def load_trade_prices(
     start: str,
     end: str,
     max_rows: int | None = None,
+    resample_seconds: int | None = None,
 ) -> list[PriceRow]:
     catalog = make_catalog()
     trade_ticks = catalog.trade_ticks(
@@ -51,29 +63,33 @@ def load_trade_prices(
         start=start,
         end=end,
     )
-    return trade_ticks_to_price_rows(trade_ticks, max_rows=max_rows)
+    return trade_ticks_to_price_rows(
+        trade_ticks,
+        max_rows=max_rows,
+        resample_seconds=resample_seconds,
+    )
 
 
 def write_price_rows_csv(rows: Iterable[PriceRow], output_path: Path) -> int:
-    output_rows = [asdict(row) for row in rows]
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with output_path.open("w", encoding="utf-8", newline="") as file:
-        writer = csv.DictWriter(file, fieldnames=["ts_event", "instrument_id", "price"])
-        writer.writeheader()
-        writer.writerows(output_rows)
-    return len(output_rows)
+    return write_dataclass_csv(rows, output_path, ["ts_event", "instrument_id", "price"])
 
 
-def _downsample(items: list[object], max_rows: int) -> list[object]:
-    if max_rows <= 0:
-        raise ValueError("max_rows must be positive")
-    if len(items) <= max_rows:
-        return items
-    if max_rows == 1:
-        return [items[0]]
+def resolve_max_rows(
+    max_rows: int,
+    no_downsample: bool = False,
+    resample_seconds: int | None = None,
+) -> int | None:
+    if no_downsample or resample_seconds is not None:
+        return None
+    return max_rows
 
-    step = (len(items) - 1) / (max_rows - 1)
-    return [items[round(index * step)] for index in range(max_rows)]
+
+def _price_row_at_ts_event(tick: object, ts_event: int) -> PriceRow:
+    return PriceRow(
+        ts_event=ts_event,
+        instrument_id=str(getattr(tick, "instrument_id")),
+        price=float(str(getattr(tick, "price"))),
+    )
 
 
 def parse_args() -> argparse.Namespace:
@@ -82,6 +98,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--start", required=True)
     parser.add_argument("--end", required=True)
     parser.add_argument("--max-rows", type=int, default=8000)
+    parser.add_argument(
+        "--resample-seconds",
+        type=int,
+        help="Export the last trade price in each fixed-width time interval.",
+    )
+    parser.add_argument(
+        "--no-downsample",
+        action="store_true",
+        help="Export all queried trade prices. Use this for forward-return diagnostics.",
+    )
     parser.add_argument(
         "--output",
         type=Path,
@@ -96,7 +122,8 @@ def main() -> None:
         instrument_id=args.instrument_id,
         start=args.start,
         end=args.end,
-        max_rows=args.max_rows,
+        max_rows=resolve_max_rows(args.max_rows, args.no_downsample, args.resample_seconds),
+        resample_seconds=args.resample_seconds,
     )
     rows_written = write_price_rows_csv(rows, args.output)
     print(f"wrote {rows_written} trade price rows to {args.output}")

@@ -1,27 +1,21 @@
 from __future__ import annotations
 
 import argparse
-import bisect
-import csv
 import html
 import json
 import statistics
 from dataclasses import dataclass
 from pathlib import Path
 
-
-@dataclass(frozen=True)
-class AlphaPoint:
-    ts_event: int
-    value: float
-
-
-@dataclass(frozen=True)
-class FeaturePoint:
-    ts_event: int
-    price: float
-    flow_value: float
-    trade_count: int
+from common.csv_io import AlphaPoint
+from common.csv_io import TradeFeaturePoint as FeaturePoint
+from common.csv_io import first_column_value
+from common.csv_io import read_alpha_points
+from common.csv_io import read_trade_feature_points
+from common.time_series import NS_PER_SECOND
+from common.time_series import index_at_or_after
+from common.time_series import index_at_or_before
+from reports.framework import write_html_report
 
 
 @dataclass(frozen=True)
@@ -81,10 +75,10 @@ def build_dense_signed_flow_context(
     if flow_column not in {"trade_imbalance", "volume_imbalance"}:
         raise ValueError("flow_column must be trade_imbalance or volume_imbalance")
 
-    alpha_points = _read_alpha_points(alpha_path)
+    alpha_points = read_alpha_points(alpha_path)
     if not alpha_points:
         raise RuntimeError(f"No alpha rows found in {alpha_path}")
-    feature_points = _read_feature_points(feature_path, flow_column)
+    feature_points = read_trade_feature_points(feature_path, flow_column)
     if not feature_points:
         raise RuntimeError(f"No feature rows found in {feature_path}")
     _raise_if_feature_data_too_sparse(feature_points, min(horizons))
@@ -117,8 +111,8 @@ def build_dense_signed_flow_context(
     return DenseSignedFlowContext(
         alpha_source_path=alpha_path,
         feature_source_path=feature_path,
-        instrument_id=_first_column_value(alpha_path, "instrument_id"),
-        alpha_name=_first_column_value(alpha_path, "alpha_name"),
+        instrument_id=first_column_value(alpha_path, "instrument_id"),
+        alpha_name=first_column_value(alpha_path, "alpha_name"),
         horizons_seconds=horizons,
         row_count=len(alpha_points),
         joined_count=len(first_horizon_points),
@@ -134,8 +128,7 @@ def write_dense_signed_flow_report_html(
     context: DenseSignedFlowContext,
     output_path: Path,
 ) -> None:
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(render_dense_signed_flow_report_html(context), encoding="utf-8")
+    write_html_report(context, output_path, render_dense_signed_flow_report_html)
 
 
 def render_dense_signed_flow_report_html(context: DenseSignedFlowContext) -> str:
@@ -231,26 +224,27 @@ def _joined_points(
     feature_times = [point.ts_event for point in feature_points]
     result: list[JoinedPoint] = []
     for alpha in alpha_points:
-        current_index = bisect.bisect_right(feature_times, alpha.ts_event) - 1
+        current_index = index_at_or_before(feature_times, alpha.ts_event)
         if current_index < 0:
             continue
         feature = feature_points[current_index]
         if feature.price == 0:
             continue
-        flow_regime = _flow_regime_for(alpha.value, feature.flow_value, book_threshold, flow_threshold)
+        flow_value = feature.flow_value if feature.flow_value is not None else feature.trade_imbalance
+        flow_regime = _flow_regime_for(alpha.value, flow_value, book_threshold, flow_threshold)
         if flow_regime is None:
             continue
         for horizon_seconds in horizons_seconds:
-            future_index = bisect.bisect_left(
+            future_index = index_at_or_after(
                 feature_times,
-                alpha.ts_event + horizon_seconds * 1_000_000_000,
+                alpha.ts_event + horizon_seconds * NS_PER_SECOND,
             )
             if future_index >= len(feature_points):
                 continue
             result.append(
                 JoinedPoint(
                     alpha_value=alpha.value,
-                    flow_value=feature.flow_value,
+                    flow_value=flow_value,
                     trade_count=feature.trade_count,
                     density_regime="",
                     flow_regime=flow_regime,
@@ -366,31 +360,6 @@ def _directional_return(point: JoinedPoint) -> float:
     return -point.forward_return
 
 
-def _read_alpha_points(source_path: Path) -> list[AlphaPoint]:
-    points: list[AlphaPoint] = []
-    with source_path.open("r", encoding="utf-8", newline="") as file:
-        reader = csv.DictReader(file)
-        for row in reader:
-            points.append(AlphaPoint(ts_event=int(row["ts_event"]), value=float(row["value"])))
-    return sorted(points, key=lambda point: point.ts_event)
-
-
-def _read_feature_points(source_path: Path, flow_column: str) -> list[FeaturePoint]:
-    points: list[FeaturePoint] = []
-    with source_path.open("r", encoding="utf-8", newline="") as file:
-        reader = csv.DictReader(file)
-        for row in reader:
-            points.append(
-                FeaturePoint(
-                    ts_event=int(row["ts_event"]),
-                    price=float(row["price"]),
-                    flow_value=float(row[flow_column]),
-                    trade_count=int(row["trade_count"]),
-                ),
-            )
-    return sorted(points, key=lambda point: point.ts_event)
-
-
 def _raise_if_feature_data_too_sparse(
     feature_points: list[FeaturePoint],
     shortest_horizon_seconds: int,
@@ -398,7 +367,7 @@ def _raise_if_feature_data_too_sparse(
     if len(feature_points) < 2:
         raise RuntimeError("Feature data is too sparse: at least two rows are required")
     gaps_seconds = [
-        (current.ts_event - previous.ts_event) / 1_000_000_000
+        (current.ts_event - previous.ts_event) / NS_PER_SECOND
         for previous, current in zip(feature_points, feature_points[1:])
     ]
     median_gap_seconds = statistics.median(gaps_seconds)
@@ -408,15 +377,6 @@ def _raise_if_feature_data_too_sparse(
             f"median gap is {median_gap_seconds:.3f}s but shortest horizon is "
             f"{shortest_horizon_seconds}s.",
         )
-
-
-def _first_column_value(source_path: Path, column: str) -> str:
-    with source_path.open("r", encoding="utf-8", newline="") as file:
-        reader = csv.DictReader(file)
-        first = next(reader, None)
-        if first is None:
-            return ""
-        return first[column]
 
 
 def _summary_payload(summary: DenseFlowSummary) -> dict[str, int | str | float]:
