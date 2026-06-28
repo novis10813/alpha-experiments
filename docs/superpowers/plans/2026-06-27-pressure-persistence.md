@@ -43,7 +43,7 @@ Expected: all tests pass.
 ### Task 2: Full Verification And Experiment
 
 **Files:**
-- Modify: `docs/research/factors/orderbook_imbalance.md`
+- Modify: `docs/research/factors/orderbook_imbalance_feature.md`
 - Generate: `outputs/alphas/confirmed_pressure_persistence_BTCUSDT_2026-06-18_2026-06-25_1m.csv`
 - Generate: `outputs/reports/confirmed_pressure_persistence_relationship_BTCUSDT_2026-06-18_2026-06-25_1m_3m_5m.html`
 

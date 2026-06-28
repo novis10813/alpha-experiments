@@ -1,15 +1,15 @@
-# Order Book Imbalance
+# Order Book Imbalance Feature
 
 ## Status
 
 `feature_candidate`
 
-Order book imbalance has measurable short-horizon directional information, but
-the observed edge is small. Treat it as a microstructure feature, confirmation
-signal, execution-timing input, or regime-specific filter rather than a
-standalone tradable alpha.
+Raw order book imbalance has measurable short-horizon directional information,
+but the observed edge is small. Treat it as a microstructure feature,
+confirmation signal, execution-timing input, or regime-specific filter rather
+than a standalone tradable alpha.
 
-## Definition
+## Feature Definition
 
 - Alpha name: `orderbook_imbalance_depth10`
 - Formula: `(bid_size - ask_size) / (bid_size + ask_size)`
@@ -776,9 +776,9 @@ More appropriate uses:
 
 ## Caveats
 
-- Returns use trade prices, not executable quote or fill prices.
-- Fees, spread, slippage, latency, queue position, and adverse selection are not
-  modeled.
+- Relationship, event-study, and interaction diagnostics use trade prices.
+  Executable-return screens use bid/ask quotes, but still do not model queue
+  position, partial fills, maker/taker fee schedules, or adverse selection.
 - Most diagnostics use one week. Core executable-return and pressure-persistence
   checks were repeated for BTC, ETH, and BNB; the more detailed down-streak
   structure remains BTC-only.
@@ -786,33 +786,42 @@ More appropriate uses:
   returned only `2026-06-11T00:00:00Z` through `2026-06-24T23:59:59Z`.
 - The 8,000 row visualization price CSV is not valid for short-horizon return
   diagnostics.
-- Extreme events are not de-duplicated into independent event clusters; adjacent
-  snapshots may be highly correlated.
+- Raw snapshot diagnostics contain adjacent highly correlated observations.
+  Clustered extreme-event and down-streak reports reduce this problem for their
+  specific event definitions, but not for every table above.
 - The three-bar kbar analysis clusters same-direction runs, but longer forward
   horizons can still overlap across nearby events.
 
-## Next Experiments
+## Completed Validation
 
-- `imbalance x spread`: check whether edge survives wider or tighter spread
-  regimes.
-- `imbalance x realized volatility`: test whether high-volatility windows amplify
-  or degrade the signal.
-- `imbalance x trade volume`: separate active flow regimes from quiet book states.
-- `imbalance x trade density`: refine density buckets beyond median and top
-  decile splits.
-- Signed trade flow: estimate buy-initiated and sell-initiated trades using tick
-  rule or catalog aggressor side if available.
-- Four-quadrant event study: compare confirmed pressure and absorption regimes.
-- Cluster dense trading periods into events so adjacent 1 second observations do
-  not dominate sample counts.
-- `imbalance x recent return`: distinguish continuation from short-term reversal.
-- Event clustering: collapse consecutive extreme snapshots into one event and
-  recompute the path.
-- Transaction cost screen: estimate whether any threshold and horizon survives a
-  realistic cost assumption.
-- Dense signed flow: combine trade density with the signed flow quadrants to see
-  whether pressure confirmation strengthens specifically during dense trading.
-- Downside continuation screen: test down-down-down plus confirmed sell pressure
-  against fees, spread, slippage, and a realistic execution delay.
-- Regime split: check whether the down-down-down pressure structure works only
-  during high volatility, high trade density, or broad market downtrend regimes.
+The following validation threads have been completed for this factor:
+
+- Corrected sparse-price forward-return diagnostics with 1 second trade prices.
+- Extreme imbalance event study.
+- Quote-based executable-return screen with bid/ask entry and exit prices,
+  transaction-cost assumptions, and entry delays.
+- Spread-regime executable-return screen.
+- Clustered extreme-event screen.
+- Trade volume and trade-density interaction screens.
+- Tick-rule signed trade-flow and signed-volume flow confirmation.
+- Four-quadrant signed-flow absorption screen.
+- Dense signed-flow screen combining density regimes with signed-flow quadrants.
+- 1 minute confirmed pressure-persistence derived alpha.
+- BTC, ETH, and BNB cross-instrument validation for core executable-return and
+  pressure-persistence diagnostics.
+- Down-streak pressure screen for BTC.
+
+## Remaining Optional Work
+
+Order book imbalance is sufficiently validated as a feature candidate rather
+than a standalone alpha. Further work should be targeted, not another broad
+round of raw imbalance reports:
+
+- Add realized-volatility and recent-return regime splits if the next model uses
+  imbalance as one feature among several.
+- Refine the down-streak pressure structure with explicit volatility, density,
+  and broader-market regimes.
+- Replace tick-rule signed flow with catalog aggressor-side data if that field
+  becomes available.
+- Test imbalance inside a multi-factor model or execution policy where its role
+  is confirmation, veto, sizing, or aggressiveness adjustment.

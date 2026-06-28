@@ -5,11 +5,16 @@ reproduce them. Keep these notes focused on conclusions, assumptions, data
 windows, and links to local report artifacts. Large CSV and HTML outputs should
 stay under `outputs/`.
 
+Use [Alpha Research Framework](research-framework.md) as the operating model for
+new research. The current focus is hypothesis-based and rule-based alpha
+research before prediction-oriented modeling.
+
 ## Directory Layout
 
 ```text
 docs/research/
   README.md
+  research-framework.md
   factors/
     <factor_name>.md
   templates/
@@ -44,4 +49,4 @@ Use one status per factor note:
 
 | Factor | Status | Summary |
 | --- | --- | --- |
-| [Order Book Imbalance](factors/orderbook_imbalance.md) | `feature_candidate` | Directional short-horizon signal exists, but observed edge is small after fixing sparse price data. |
+| [Order Book Imbalance Feature](factors/orderbook_imbalance_feature.md) | `feature_candidate` | Directional short-horizon signal exists, but observed edge is small after fixing sparse price data. |

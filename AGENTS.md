@@ -82,6 +82,20 @@ Keep the core alpha signal narrow. Prices, forward returns, z-scores, thresholds
 trigger flags, positions, fills, PnL, and drawdown belong in diagnostics, reports, or
 backtests unless explicitly requested as part of a derived dataset.
 
+## Research framework
+
+Use `docs/research/research-framework.md` as the operating model for factor
+research. The repository currently prioritizes hypothesis-based and rule-based
+alpha research: start from an explicit market-structure hypothesis, define
+observable features or rule states, run focused diagnostics, and document whether
+the result is a standalone alpha, feature candidate, filter, execution input, or
+rejected idea.
+
+Do not prematurely frame raw market variables as tradable alphas. Keep the
+distinction clear between raw features, states, rule alphas, diagnostics, and
+backtests. Prediction-oriented modeling can come later after there are clear
+feature candidates, rule alphas, and diagnostic targets worth predicting.
+
 ## Development commands
 
 Run the test suite with:

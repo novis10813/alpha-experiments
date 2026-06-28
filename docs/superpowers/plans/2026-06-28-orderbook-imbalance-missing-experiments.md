@@ -17,7 +17,7 @@
 - Create: `reports/executable_return_report.py`
 - Create: `tests/test_orderbook_quotes.py`
 - Create: `tests/test_executable_return_report.py`
-- Modify: `docs/research/factors/orderbook_imbalance.md`
+- Modify: `docs/research/factors/orderbook_imbalance_feature.md`
 
 - [x] **Step 1: Write quote-export tests**
 
@@ -95,14 +95,14 @@ Then run the executable-return report command from Step 4.
 
 - [x] **Step 7: Document findings**
 
-Add a short section to `docs/research/factors/orderbook_imbalance.md` with gross/net executable-return summaries and whether the raw trade-price edge survives bid/ask execution.
+Add a short section to `docs/research/factors/orderbook_imbalance_feature.md` with gross/net executable-return summaries and whether the raw trade-price edge survives bid/ask execution.
 
 ### Task 2: Spread Regime Screen
 
 **Files:**
 - Create: `reports/spread_regime_report.py`
 - Create: `tests/test_spread_regime_report.py`
-- Modify: `docs/research/factors/orderbook_imbalance.md`
+- Modify: `docs/research/factors/orderbook_imbalance_feature.md`
 
 - [x] Split executable-return points by spread bps median, p75, and p90.
 - [x] Report whether high-spread regimes explain or destroy the raw edge.
@@ -113,7 +113,7 @@ Add a short section to `docs/research/factors/orderbook_imbalance.md` with gross
 **Files:**
 - Create: `reports/clustered_event_report.py`
 - Create: `tests/test_clustered_event_report.py`
-- Modify: `docs/research/factors/orderbook_imbalance.md`
+- Modify: `docs/research/factors/orderbook_imbalance_feature.md`
 
 - [x] Collapse consecutive extreme imbalance or pressure states into one event.
 - [x] Recompute forward returns on clustered events only.
@@ -124,7 +124,7 @@ Add a short section to `docs/research/factors/orderbook_imbalance.md` with gross
 **Files:**
 - Create: `reports/dense_signed_flow_report.py`
 - Create: `tests/test_dense_signed_flow_report.py`
-- Modify: `docs/research/factors/orderbook_imbalance.md`
+- Modify: `docs/research/factors/orderbook_imbalance_feature.md`
 
 - [x] Combine trade density regimes with signed-flow quadrants.
 - [x] Test whether confirmed pressure is strongest specifically during high-density flow.
@@ -134,7 +134,7 @@ Add a short section to `docs/research/factors/orderbook_imbalance.md` with gross
 
 **Files:**
 - Modify existing alpha/report commands only if needed.
-- Modify: `docs/research/factors/orderbook_imbalance.md`
+- Modify: `docs/research/factors/orderbook_imbalance_feature.md`
 
 - [x] Repeat core executable-return and pressure-persistence diagnostics for `ETHUSDT.BINANCE`.
 - [x] Repeat core executable-return and pressure-persistence diagnostics for `BNBUSDT.BINANCE`.
