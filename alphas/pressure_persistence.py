@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+"""Build rule-based pressure persistence signals from book and trade flow.
+
+These signals are hypothesis-driven rule alpha candidates. They intentionally
+use only information knowable at each completed bucket timestamp.
+"""
+
 import argparse
 from dataclasses import dataclass
 from pathlib import Path

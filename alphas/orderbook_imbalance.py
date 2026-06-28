@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+"""Export raw order book imbalance in the canonical alpha row shape.
+
+The row shape is useful for shared diagnostics, but the research conclusion is
+that raw order book imbalance is a feature candidate rather than a standalone
+tradable alpha.
+"""
+
 import argparse
 from dataclasses import dataclass
 from datetime import UTC

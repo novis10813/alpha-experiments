@@ -29,7 +29,7 @@ Use one status per factor note:
 | --- | --- |
 | `idea` | Concept has been written down but not evaluated. |
 | `diagnostic_passed` | Basic data quality and signal diagnostics look usable. |
-| `feature_candidate` | Signal has measurable edge but is better suited as a model feature or filter. |
+| `feature_candidate` | Signal has measurable edge but is better suited as a model feature, filter, state, or execution input; this does not imply a tradable standalone alpha. |
 | `backtest_candidate` | Signal is strong enough to justify execution assumptions and strategy tests. |
 | `rejected` | Evidence does not support further work under current assumptions. |
 | `archived` | Superseded or paused; kept for historical context. |
@@ -50,3 +50,4 @@ Use one status per factor note:
 | Factor | Status | Summary |
 | --- | --- | --- |
 | [Order Book Imbalance Feature](factors/orderbook_imbalance_feature.md) | `feature_candidate` | Directional short-horizon signal exists, but observed edge is small after fixing sparse price data. |
+| [Down-Streak Pressure](factors/down_streak_pressure.md) | `feature_candidate` | Down-down-down 1m kbar streaks with confirmed sell pressure show conditional downside continuation, but edge weakens after costs and de-overlap. |

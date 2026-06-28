@@ -15,4 +15,5 @@ wheels/
 .env
 
 # Generated experiment outputs
-outputs/
+outputs/*
+!outputs/README.md
