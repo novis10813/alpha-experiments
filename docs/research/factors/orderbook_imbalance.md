@@ -181,6 +181,11 @@ for the signed volume version.
 - Signed volume flow absorption: `outputs/reports/orderbook_imbalance_signed_volume_absorption_BTCUSDT_2026-06-18_2026-06-25.html`
 - Confirmed pressure persistence 1m relationship: `outputs/reports/confirmed_pressure_persistence_relationship_BTCUSDT_2026-06-18_2026-06-25_1m_3m_5m.html`
 - Confirmed volume pressure persistence 1m relationship: `outputs/reports/confirmed_volume_pressure_persistence_relationship_BTCUSDT_2026-06-18_2026-06-25_1m_3m_5m.html`
+- Quote-based executable return screen: `outputs/reports/orderbook_imbalance_executable_returns_BTCUSDT_2026-06-18_2026-06-25.html`
+- Spread regime executable return screen: `outputs/reports/orderbook_imbalance_spread_regime_BTCUSDT_2026-06-18_2026-06-25.html`
+- Clustered extreme executable return screen: `outputs/reports/orderbook_imbalance_clustered_extreme_BTCUSDT_2026-06-18_2026-06-25.html`
+- Dense signed trade-count flow screen: `outputs/reports/orderbook_imbalance_dense_signed_flow_BTCUSDT_2026-06-18_2026-06-25.html`
+- Dense signed volume flow screen: `outputs/reports/orderbook_imbalance_dense_signed_volume_flow_BTCUSDT_2026-06-18_2026-06-25.html`
 
 ## Key Findings
 
@@ -192,6 +197,64 @@ Decile bucket ranking is present after correcting the price source:
 | 30s | `0.0185%` |
 | 60s | `0.0183%` |
 
+Quote-based executable-return screening was added using 1 second best bid/ask
+quotes exported from `OrderBookDepth10`. Directional execution assumes positive
+imbalance enters long at the current ask and exits at the future bid; negative
+imbalance enters short at the current bid and exits at the future ask. This is a
+more conservative screen than trade-price forward returns, but still does not
+model queue position, partial fills, or adverse selection.
+
+The 7 day quote export produced `604,800` 1 second quote rows. Across all
+imbalance snapshots, gross executable directional return was positive but far
+below even modest round-trip costs:
+
+| Horizon | Delay | Gross avg | Net @ 2 bps | Net @ 5 bps | Net @ 10 bps |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 10s | 0s | `0.00393%` | `-0.01607%` | `-0.04607%` | `-0.09607%` |
+| 30s | 0s | `0.00468%` | `-0.01532%` | `-0.04532%` | `-0.09532%` |
+| 60s | 0s | `0.00480%` | `-0.01520%` | `-0.04520%` | `-0.09520%` |
+| 10s | 1s | `0.00292%` | `-0.01708%` | `-0.04708%` | `-0.09708%` |
+| 30s | 1s | `0.00357%` | `-0.01643%` | `-0.04643%` | `-0.09643%` |
+| 60s | 1s | `0.00370%` | `-0.01630%` | `-0.04630%` | `-0.09630%` |
+| 10s | 5s | `0.00131%` | `-0.01869%` | `-0.04869%` | `-0.09869%` |
+| 30s | 5s | `0.00164%` | `-0.01836%` | `-0.04836%` | `-0.09836%` |
+| 60s | 5s | `0.00180%` | `-0.01820%` | `-0.04820%` | `-0.09820%` |
+| 10s | 10s | `0.00061%` | `-0.01939%` | `-0.04939%` | `-0.09939%` |
+| 30s | 10s | `0.00073%` | `-0.01927%` | `-0.04927%` | `-0.09927%` |
+| 60s | 10s | `0.00095%` | `-0.01906%` | `-0.04906%` | `-0.09906%` |
+
+Interpretation: the raw imbalance edge does not survive a simple bid/ask
+execution screen with a 2 bps round-trip cost assumption. It is also materially
+latency-sensitive: delaying entry by 5 to 10 seconds erodes most of the already
+small gross edge. This reinforces treating raw imbalance as a feature or timing
+input rather than a direct taker-style trading rule.
+
+Spread regime was then tested using the same quote-executable return definition,
+with `delay=0s` and `cost=2bps`. Entry-time spread thresholds in the 1 second
+quote sample were very tight:
+
+| Spread threshold | Value |
+| --- | ---: |
+| median | `0.001573 bps` |
+| p75 | `0.001594 bps` |
+| p90 | `0.001603 bps` |
+
+Top-spread regimes had slightly higher gross directional returns, especially at
+10s and 30s, but they still did not survive a 2 bps round-trip cost:
+
+| Regime | 10s gross | 10s net @ 2 bps | 30s gross | 30s net @ 2 bps | 60s gross | 60s net @ 2 bps |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| low spread | `0.00367%` | `-0.01633%` | `0.00470%` | `-0.01530%` | `0.00501%` | `-0.01499%` |
+| high spread | `0.00419%` | `-0.01581%` | `0.00467%` | `-0.01533%` | `0.00460%` | `-0.01540%` |
+| top quartile spread | `0.00450%` | `-0.01550%` | `0.00466%` | `-0.01534%` | `0.00453%` | `-0.01547%` |
+| top decile spread | `0.00531%` | `-0.01469%` | `0.00530%` | `-0.01470%` | `0.00524%` | `-0.01476%` |
+| below top decile | `0.00377%` | `-0.01623%` | `0.00461%` | `-0.01539%` | `0.00475%` | `-0.01525%` |
+
+Interpretation: spread does not rescue raw imbalance as a taker-style signal.
+Higher-spread snapshots concentrate somewhat better gross edge, but the effect is
+too small relative to even a modest cost assumption. Spread remains useful as a
+risk/execution context variable, not as sufficient confirmation by itself.
+
 Extreme imbalance events have higher directional hit rates, but the average
 directional return remains small:
 
@@ -201,6 +264,27 @@ directional return remains small:
 | `0.95` | negative | `0.00984%` | `64.73%` | `0.00975%` | `59.76%` |
 | `0.98` | positive | `0.01074%` | `64.42%` | `0.01035%` | `58.91%` |
 | `0.98` | negative | `0.01101%` | `65.69%` | `0.01086%` | `60.27%` |
+
+The initial extreme event study counted individual depth snapshots. A stricter
+clustered version was added to collapse consecutive same-side extreme imbalance
+snapshots into one event at the first timestamp in the run. Across thresholds
+`0.95` and `0.98`, raw extreme rows dropped from `135,676` snapshot-threshold
+observations to `66,774` clustered events.
+
+Using quote-executable directional returns with `cost=2bps`, clustered extremes
+still did not clear costs:
+
+| Threshold | Side | Events | Mean cluster length | 10s gross | 10s net @ 2 bps | 30s gross | 30s net @ 2 bps | 60s gross | 60s net @ 2 bps |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `0.95` | positive | `20,494` | `2.25` | `0.00939%` | `-0.01061%` | `0.00961%` | `-0.01039%` | `0.00947%` | `-0.01053%` |
+| `0.95` | negative | `20,891` | `2.22` | `0.00973%` | `-0.01027%` | `0.01066%` | `-0.00935%` | `0.01096%` | `-0.00904%` |
+| `0.98` | positive | `12,539` | `1.72` | `0.01084%` | `-0.00916%` | `0.01123%` | `-0.00878%` | `0.01072%` | `-0.00928%` |
+| `0.98` | negative | `12,848` | `1.69` | `0.01082%` | `-0.00918%` | `0.01160%` | `-0.00840%` | `0.01192%` | `-0.00808%` |
+
+Interpretation: clustering improves statistical hygiene and raises the apparent
+gross event edge relative to all snapshots, but the result remains below a 2 bps
+round-trip cost assumption. Extreme imbalance is useful as a state filter; it is
+not yet an executable standalone trigger.
 
 Trade volume interaction was tested with 1 second trade features:
 
@@ -364,6 +448,47 @@ Interpretation: signed flow confirms that imbalance behaves more like a
 short-horizon pressure continuation feature than a pure absorption/reversal
 feature. Absorption states still have positive directional returns in the book
 direction, but the edge is smaller than when book imbalance and active flow agree.
+
+## Dense Signed Flow Results
+
+The signed-flow quadrants were then split by event-time trade density. This
+tests whether pressure confirmation is specifically stronger when many trades
+are arriving in the 1 second feature bucket.
+
+For `trade_imbalance`, the density threshold was the median joined trade count:
+`4` trades/sec. Directional returns:
+
+| Density | Regime | 10s | 30s | 60s |
+| --- | --- | ---: | ---: | ---: |
+| low | bid-heavy + buy flow | `0.00332%` | `0.00419%` | `0.00455%` |
+| low | ask-heavy + sell flow | `0.00340%` | `0.00438%` | `0.00446%` |
+| low | bid-heavy + sell flow | `0.00268%` | `0.00318%` | `0.00327%` |
+| low | ask-heavy + buy flow | `0.00284%` | `0.00380%` | `0.00457%` |
+| high | bid-heavy + buy flow | `0.00554%` | `0.00577%` | `0.00529%` |
+| high | ask-heavy + sell flow | `0.00581%` | `0.00653%` | `0.00683%` |
+| high | bid-heavy + sell flow | `0.00298%` | `0.00301%` | `0.00244%` |
+| high | ask-heavy + buy flow | `0.00331%` | `0.00388%` | `0.00424%` |
+
+For `volume_imbalance`, the density threshold was `3` trades/sec. The same
+ordering held:
+
+| Density | Regime | 10s | 30s | 60s |
+| --- | --- | ---: | ---: | ---: |
+| low | bid-heavy + buy volume | `0.00318%` | `0.00405%` | `0.00439%` |
+| low | ask-heavy + sell volume | `0.00323%` | `0.00414%` | `0.00433%` |
+| low | bid-heavy + sell volume | `0.00269%` | `0.00333%` | `0.00345%` |
+| low | ask-heavy + buy volume | `0.00283%` | `0.00370%` | `0.00436%` |
+| high | bid-heavy + buy volume | `0.00529%` | `0.00560%` | `0.00523%` |
+| high | ask-heavy + sell volume | `0.00540%` | `0.00613%` | `0.00648%` |
+| high | bid-heavy + sell volume | `0.00348%` | `0.00361%` | `0.00311%` |
+| high | ask-heavy + buy volume | `0.00371%` | `0.00449%` | `0.00487%` |
+
+Interpretation: density is useful mainly when combined with signed flow. The
+strongest states are high-density confirmed pressure regimes, especially
+ask-heavy book plus sell flow. Absorption regimes remain weaker. This supports
+continuing with pressure-confirmation filters, but these are still trade-price
+directional returns and should be screened through quote-executable costs before
+being treated as tradable.
 
 ## 1 Minute Confirmed Pressure Persistence
 
@@ -592,6 +717,47 @@ high-volatility signed-volume regimes can remain slightly positive after a 2 bps
 cost assumption, but this weakens under stricter 30 minute de-overlap. Treat the
 result as a regime/filter candidate, not an executable standalone rule.
 
+## Multi-Instrument Check
+
+The core quote-executable screen was repeated for `ETHUSDT.BINANCE` and
+`BNBUSDT.BINANCE` on the same `2026-06-18` to `2026-06-25` window. Both symbols
+used 1 second best bid/ask quotes from `OrderBookDepth10`.
+
+0-delay quote-executable gross directional returns:
+
+| Instrument | Horizon | Gross avg | Net @ 2 bps |
+| --- | ---: | ---: | ---: |
+| BTCUSDT | 10s | `0.00393%` | `-0.01607%` |
+| BTCUSDT | 30s | `0.00468%` | `-0.01532%` |
+| BTCUSDT | 60s | `0.00480%` | `-0.01520%` |
+| ETHUSDT | 10s | `0.00361%` | `-0.01639%` |
+| ETHUSDT | 30s | `0.00399%` | `-0.01601%` |
+| ETHUSDT | 60s | `0.00380%` | `-0.01620%` |
+| BNBUSDT | 10s | `0.00197%` | `-0.01803%` |
+| BNBUSDT | 30s | `0.00216%` | `-0.01784%` |
+| BNBUSDT | 60s | `0.00194%` | `-0.01806%` |
+
+Interpretation: the raw imbalance effect is not BTC-only, but it is weaker on
+ETH and materially weaker on BNB. None of the three instruments clears a 2 bps
+round-trip cost assumption under this simple taker-style execution screen.
+
+The 1 minute confirmed pressure persistence diagnostic was also repeated for
+ETH and BNB. Decile 10 minus decile 1 mean forward-return spread:
+
+| Instrument | Flow | 60s | 180s | 300s |
+| --- | --- | ---: | ---: | ---: |
+| BTCUSDT | trade-count | `0.00855%` | `0.00540%` | `0.00419%` |
+| BTCUSDT | volume | `0.00775%` | `0.00483%` | `0.00659%` |
+| ETHUSDT | trade-count | `0.00126%` | `0.00623%` | `0.00778%` |
+| ETHUSDT | volume | `0.00343%` | `0.00431%` | `0.00490%` |
+| BNBUSDT | trade-count | `-0.00068%` | `-0.00230%` | `-0.00430%` |
+| BNBUSDT | volume | `0.00089%` | `0.00132%` | `-0.00040%` |
+
+Interpretation: pressure persistence generalizes better to ETH than to BNB.
+BNB does not support the same pressure-continuation shape in this 7 day window.
+This weakens the case for a universal order-book imbalance alpha and supports
+treating the feature as instrument- and regime-dependent.
+
 ## Interpretation
 
 The signal captures short-horizon order-flow pressure. It has stable directional
@@ -613,9 +779,11 @@ More appropriate uses:
 - Returns use trade prices, not executable quote or fill prices.
 - Fees, spread, slippage, latency, queue position, and adverse selection are not
   modeled.
-- Findings are for one instrument. Most diagnostics use one week; the three-bar
-  pressure stability check requested one month but the catalog returned only
-  `2026-06-11T00:00:00Z` through `2026-06-24T23:59:59Z`.
+- Most diagnostics use one week. Core executable-return and pressure-persistence
+  checks were repeated for BTC, ETH, and BNB; the more detailed down-streak
+  structure remains BTC-only.
+- The three-bar pressure stability check requested one month but the catalog
+  returned only `2026-06-11T00:00:00Z` through `2026-06-24T23:59:59Z`.
 - The 8,000 row visualization price CSV is not valid for short-horizon return
   diagnostics.
 - Extreme events are not de-duplicated into independent event clusters; adjacent
