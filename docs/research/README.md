@@ -5,15 +5,17 @@ reproduce them. Keep these notes focused on conclusions, assumptions, data
 windows, and links to local report artifacts. Large CSV and HTML outputs should
 stay under `outputs/`.
 
-Use [Alpha Research Framework](research-framework.md) as the operating model for
-new research. The current focus is hypothesis-based and rule-based alpha
-research before prediction-oriented modeling.
+Use [Current Research Focus](current-focus.md) as the entry point for a new
+research session. Use [Alpha Research Framework](research-framework.md) as the
+operating model for new research. The current focus is hypothesis-based and
+rule-based alpha research before prediction-oriented modeling.
 
 ## Directory Layout
 
 ```text
 docs/research/
   README.md
+  current-focus.md
   research-framework.md
   factors/
     <factor_name>.md

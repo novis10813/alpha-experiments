@@ -84,11 +84,12 @@ backtests unless explicitly requested as part of a derived dataset.
 
 ## Research framework
 
-Use `docs/research/research-framework.md` as the operating model for factor
-research. The repository currently prioritizes hypothesis-based and rule-based
-alpha research: start from an explicit market-structure hypothesis, define
-observable features or rule states, run focused diagnostics, and document whether
-the result is a standalone alpha, feature candidate, filter, execution input, or
+Before starting new research work, read `docs/research/current-focus.md`. Use
+`docs/research/research-framework.md` as the operating model for factor research.
+The repository currently prioritizes hypothesis-based and rule-based alpha
+research: start from an explicit market-structure hypothesis, define observable
+features or rule states, run focused diagnostics, and document whether the
+result is a standalone alpha, feature candidate, filter, execution input, or
 rejected idea.
 
 Do not prematurely frame raw market variables as tradable alphas. Keep the
