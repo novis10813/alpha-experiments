@@ -9,6 +9,9 @@ This file is the entry point for a new research session.
   feature, filter, or execution-timing input, not as a standalone tradable alpha.
 - The most relevant follow-on rule candidate from that line is
   [Down-Streak Pressure](factors/down_streak_pressure.md).
+- Down-streak pressure is instrument-specific: BTC has the clearest conditional
+  continuation structure, ETH rejected the structure in validation, and BNB only
+  showed a thin 30 minute signed-volume regime effect.
 - Generated artifacts in `outputs/` are scratch files. Durable findings should
   live in factor notes under `docs/research/factors/`.
 
@@ -16,10 +19,11 @@ This file is the entry point for a new research session.
 
 Choose one of these before writing more code:
 
-- Continue the down-streak pressure line by testing whether it persists on ETH
-  and BNB, then decide whether it remains instrument-specific.
+- Continue down-streak pressure only as a BTC-focused or BNB signed-volume
+  30-minute regime/filter candidate.
 - Refine down-streak pressure with explicit volatility, trade-density, and broad
-  market trend gates before considering any backtest.
+  market trend gates before considering any backtest or quote-based execution
+  screen.
 - Start a new hypothesis-based factor note using
   [Alpha Research Framework](research-framework.md) and the factor template.
 
@@ -28,6 +32,7 @@ Choose one of these before writing more code:
 - Do not add more raw order book imbalance reports unless there is a specific
   new hypothesis that existing reports do not answer.
 - Do not promote raw order book imbalance to a backtest candidate.
+- Do not treat down-streak pressure as a universal cross-instrument rule.
 - Do not start prediction-oriented modeling until there are clearer rule
   candidates, feature candidates, and diagnostic targets worth predicting.
 

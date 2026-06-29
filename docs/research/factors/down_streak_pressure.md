@@ -5,9 +5,10 @@
 `feature_candidate`
 
 Down-down-down 1 minute kbar streaks with confirmed sell pressure show
-conditional downside continuation. The effect is more structured than raw order
-book imbalance, but it weakens after transaction costs and stricter event
-de-overlap. Treat it as a regime or filter candidate rather than a standalone
+conditional downside continuation on BTC. The effect is more structured than raw
+order book imbalance, but it weakens after transaction costs and stricter event
+de-overlap and does not generalize cleanly to ETH or BNB. Treat it as an
+instrument- and regime-dependent filter candidate rather than a standalone
 trading rule.
 
 ## Rule Definition
@@ -59,6 +60,16 @@ Longer stability request:
 - 1 minute kbars: `18,718`
 - Clustered three-bar events: `2,223`
 
+Cross-instrument validation request:
+
+- Instruments: `ETHUSDT.BINANCE`, `BNBUSDT.BINANCE`
+- Requested start: `2026-05-25T00:00:00Z`
+- Requested end: `2026-06-25T00:00:00Z`
+- Catalog returned raw imbalance from `2026-06-11T00:00:00Z` through
+  `2026-06-24T23:59:59Z`.
+- 1 second trade price and feature exports covered `1,209,600` rows per
+  instrument, from `2026-06-11T00:00:01Z` through `2026-06-25T00:00:00Z`.
+
 ## Commands
 
 Generate the longer-window raw imbalance, prices, and signed trade features:
@@ -104,6 +115,24 @@ Repeat with
 and output
 `outputs/reports/down_streak_pressure_volume_BTCUSDT_2026-06-11_2026-06-25.html`
 for the signed-volume pressure version.
+
+For ETH and BNB, repeat the same commands with the symbol-specific sources:
+
+```bash
+uv run python -m reports.down_streak_pressure_report \
+  --price-source outputs/market/trade_prices_ETHUSDT_2026-05-25_2026-06-25_1s.csv \
+  --pressure-source outputs/alphas/confirmed_pressure_persistence_ETHUSDT_2026-06-11_2026-06-25_1m.csv \
+  --feature-source outputs/market/trade_features_ETHUSDT_2026-05-25_2026-06-25_1s_signed.csv \
+  --horizons-minutes 5 10 30 \
+  --pressure-threshold 0.2 \
+  --cooldown-minutes 0 5 30 \
+  --cost-bps 0 2 5 10 \
+  --output outputs/reports/down_streak_pressure_trade_count_ETHUSDT_2026-06-11_2026-06-25.html
+```
+
+Repeat for `BNBUSDT`, and repeat both symbols with the corresponding
+`confirmed_volume_pressure_persistence` source for the signed-volume pressure
+version.
 
 ## Initial 7 Day Diagnostic
 
@@ -220,6 +249,56 @@ high-volatility signed-volume regimes can remain slightly positive after a 2 bps
 cost assumption, but this weakens under stricter 30 minute de-overlap. Treat the
 result as a regime/filter candidate, not an executable standalone rule.
 
+## ETH And BNB Validation
+
+The same down-streak pressure screen was repeated for ETH and BNB on the
+available `2026-06-11` to `2026-06-25` sample. This is a validation of whether
+the BTC structure persists across instruments, not a new rule definition.
+
+Raw down-streak counts and pressure-confirmed events:
+
+| Instrument | Pressure | 1m kbars | Raw down3 events | Confirmed events | 30m cooldown events |
+| --- | --- | ---: | ---: | ---: | ---: |
+| ETHUSDT | trade-count | `20,161` | `1,101` | `217` | `167` |
+| ETHUSDT | volume | `20,161` | `1,101` | `217` | `161` |
+| BNBUSDT | trade-count | `20,161` | `1,069` | `203` | `145` |
+| BNBUSDT | volume | `20,161` | `1,069` | `227` | `155` |
+
+All confirmed events:
+
+| Instrument | Pressure | Cooldown | 5m gross | 10m gross | 30m gross | 30m net @ 2 bps |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| ETHUSDT | trade-count | 0m | `-0.01522%` | `-0.02255%` | `-0.04912%` | `-0.06912%` |
+| ETHUSDT | trade-count | 30m | `-0.00765%` | `-0.01498%` | `-0.03604%` | `-0.05604%` |
+| ETHUSDT | volume | 0m | `-0.02259%` | `-0.03278%` | `-0.05624%` | `-0.07624%` |
+| ETHUSDT | volume | 30m | `-0.01232%` | `-0.02445%` | `-0.04394%` | `-0.06394%` |
+| BNBUSDT | trade-count | 0m | `-0.00543%` | `-0.00913%` | `0.00012%` | `-0.01988%` |
+| BNBUSDT | trade-count | 30m | `-0.00530%` | `-0.00488%` | `0.02229%` | `0.00229%` |
+| BNBUSDT | volume | 0m | `-0.00127%` | `-0.00035%` | `0.01254%` | `-0.00746%` |
+| BNBUSDT | volume | 30m | `-0.00360%` | `-0.00025%` | `0.02500%` | `0.00500%` |
+
+Regime highlights at the 30 minute horizon after a 30 minute cooldown:
+
+| Instrument | Pressure | Regime | Events | 30m gross avg | Net @ 2 bps |
+| --- | --- | --- | ---: | ---: | ---: |
+| ETHUSDT | trade-count | density high | `84` | `-0.04474%` | `-0.06474%` |
+| ETHUSDT | trade-count | volatility high | `84` | `-0.05118%` | `-0.07118%` |
+| ETHUSDT | volume | density high | `106` | `-0.03460%` | `-0.05460%` |
+| ETHUSDT | volume | volatility high | `81` | `-0.06503%` | `-0.08503%` |
+| BNBUSDT | trade-count | density high | `76` | `0.00798%` | `-0.01202%` |
+| BNBUSDT | trade-count | volatility high | `73` | `0.01895%` | `-0.00105%` |
+| BNBUSDT | volume | density high | `84` | `0.02644%` | `0.00644%` |
+| BNBUSDT | volume | volatility high | `78` | `0.02875%` | `0.00875%` |
+| BNBUSDT | volume | trend down | `80` | `0.02768%` | `0.00768%` |
+
+Interpretation: ETH rejects the BTC continuation structure in this sample. The
+pressure-confirmed down-streak events lean toward rebound rather than downside
+continuation, including in high-density, high-volatility, and down-trend
+regimes. BNB has a weak 30 minute signed-volume continuation pattern, but 5m and
+10m horizons are flat to negative and the 30m edge is thin after a 2 bps
+round-trip cost. This makes down-streak pressure instrument-specific rather than
+a robust cross-instrument rule alpha.
+
 ## Caveats
 
 - The longer sample was requested as one month, but the catalog returned about
@@ -228,11 +307,14 @@ result as a regime/filter candidate, not an executable standalone rule.
   overlap across nearby events.
 - The cost screen uses fixed bps assumptions and does not model queue position,
   partial fills, maker/taker fee schedules, or adverse selection.
-- The detailed down-streak screen is BTC-only so far.
+- ETH and BNB validation used trade-price forward returns and fixed bps cost
+  assumptions; quote-based entry and exit prices have not been applied to this
+  rule.
 
 ## Remaining Optional Work
 
-- Test whether the structure persists on ETH and BNB.
+- If this line continues, focus on BTC or BNB signed-volume 30 minute regimes
+  rather than a universal cross-instrument rule.
 - Add explicit volatility, trade-density, and broader-market trend gates before
   considering any backtest.
 - Use quote-based entry/exit prices if this rule is promoted beyond a filter

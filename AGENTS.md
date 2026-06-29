@@ -97,6 +97,21 @@ distinction clear between raw features, states, rule alphas, diagnostics, and
 backtests. Prediction-oriented modeling can come later after there are clear
 feature candidates, rule alphas, and diagnostic targets worth predicting.
 
+For new factor experiments, prefer using 1 minute kbar states as the primary
+research unit. Define observable bar states such as continuation, reversal,
+large-move exhaustion, volatility expansion, range compression, or streak
+patterns, then use market microstructure inputs such as order book pressure,
+signed trade flow, trade density, spread, and realized volatility as
+confirmation, filters, or regime context. Do not promote a kbar pattern directly
+to a strategy without forward-return diagnostics, event de-overlap, transaction
+cost sensitivity, and clear timestamp semantics.
+
+When building resampled kbar or feature rows, timestamp each row at the end of
+the aggregation interval so the signal is only available after all included
+market data is knowable. Avoid using the timestamp of the last tick inside the
+bucket when that would leak incomplete future bucket information into a signal
+or diagnostic.
+
 ## Development commands
 
 Run the test suite with:
