@@ -6,9 +6,10 @@ import html
 import json
 import statistics
 from dataclasses import dataclass
-from datetime import UTC
-from datetime import datetime
 from pathlib import Path
+
+from common.kbars import aggregate_price_kbars
+from common.time_series import ts_event_to_iso
 
 
 @dataclass(frozen=True)
@@ -20,6 +21,9 @@ class PricePoint:
 
 @dataclass(frozen=True)
 class Kbar:
+    start_time: int
+    end_time: int
+    instrument_id: str
     ts_event: int
     timestamp: str
     open: float
@@ -61,6 +65,9 @@ def build_kbar_context(price_path: Path, interval_seconds: int = 60) -> KbarCont
     price_points = _read_price_points(price_path)
     if not price_points:
         raise RuntimeError(f"No price rows found in {price_path}")
+    instrument_ids = {point.instrument_id for point in price_points}
+    if len(instrument_ids) != 1:
+        raise ValueError("Kbar return report requires exactly one instrument_id")
 
     bars = _kbars(price_points, interval_seconds)
     if not bars:
@@ -238,47 +245,36 @@ def render_kbar_report_html(context: KbarContext) -> str:
 
 
 def _kbars(price_points: list[PricePoint], interval_seconds: int) -> list[Kbar]:
-    interval_ns = interval_seconds * 1_000_000_000
+    price_bars = aggregate_price_kbars(
+        price_points,
+        interval_seconds,
+        lambda point: point.ts_event,
+        lambda point: point.instrument_id,
+        lambda point: point.price,
+    )
     bars: list[Kbar] = []
-    current_bucket: int | None = None
-    current_prices: list[float] = []
     previous_close: float | None = None
 
-    for point in price_points:
-        bucket = point.ts_event // interval_ns
-        if current_bucket is not None and bucket != current_bucket:
-            bar = _bar_for(current_bucket, current_prices, interval_ns, previous_close)
-            bars.append(bar)
-            previous_close = bar.close
-            current_prices = []
-        current_bucket = bucket
-        current_prices.append(point.price)
-
-    if current_bucket is not None and current_prices:
-        bars.append(_bar_for(current_bucket, current_prices, interval_ns, previous_close))
+    for price_bar in price_bars:
+        bars.append(
+            Kbar(
+                start_time=price_bar.start_time,
+                end_time=price_bar.end_time,
+                instrument_id=price_bar.instrument_id,
+                ts_event=price_bar.end_time,
+                timestamp=ts_event_to_iso(price_bar.end_time),
+                open=price_bar.open,
+                high=price_bar.high,
+                low=price_bar.low,
+                close=price_bar.close,
+                bar_return=(price_bar.close / price_bar.open) - 1 if price_bar.open else 0.0,
+                close_to_close_return=(price_bar.close / previous_close) - 1
+                if previous_close not in {None, 0.0}
+                else None,
+            ),
+        )
+        previous_close = price_bar.close
     return bars
-
-
-def _bar_for(
-    bucket: int,
-    prices: list[float],
-    interval_ns: int,
-    previous_close: float | None,
-) -> Kbar:
-    open_price = prices[0]
-    close_price = prices[-1]
-    return Kbar(
-        ts_event=(bucket + 1) * interval_ns,
-        timestamp=_ts_event_to_iso((bucket + 1) * interval_ns),
-        open=open_price,
-        high=max(prices),
-        low=min(prices),
-        close=close_price,
-        bar_return=(close_price / open_price) - 1 if open_price else 0.0,
-        close_to_close_return=(close_price / previous_close) - 1
-        if previous_close not in {None, 0.0}
-        else None,
-    )
 
 
 def _read_price_points(source_path: Path) -> list[PricePoint]:
@@ -325,12 +321,11 @@ def _percentile(sorted_values: list[float], percentile: float) -> float:
     return sorted_values[lower] * (1 - weight) + sorted_values[upper] * weight
 
 
-def _ts_event_to_iso(ts_event: int) -> str:
-    return datetime.fromtimestamp(ts_event / 1_000_000_000, UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
 def _bar_payload(bar: Kbar) -> dict[str, int | str | float | None]:
     return {
+        "startTime": bar.start_time,
+        "endTime": bar.end_time,
+        "instrumentId": bar.instrument_id,
         "tsEvent": bar.ts_event,
         "timestamp": bar.timestamp,
         "open": bar.open,
