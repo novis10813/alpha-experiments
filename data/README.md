@@ -26,8 +26,9 @@ export CATALOG_S3_SECRET_KEY="<secret-key>"
 export CATALOG_OUTPUT_S3_BUCKET="nautilus-data"
 ```
 
-如果是在部署主機上操作，可以參考
-`/opt/docker/secrets/nautilus-catalog-builder.env` 取得實際值。
+請使用只允許讀取 `nautilus-data` 的專用 credential。部署主機上的 reader
+credential 由 `/opt/docker/secrets/minio.env` 管理；不要使用 builder 或 archiver
+的寫入 credential。
 
 ## 安裝相依套件
 
