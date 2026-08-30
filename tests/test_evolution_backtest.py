@@ -23,6 +23,33 @@ class EvolutionBacktestTests(unittest.TestCase):
         self.assertAlmostEqual(result.metrics.daily_returns[0], result.metrics.net_return)
         self.assertFalse(result.metrics.rejected)
 
+    def test_one_second_quote_at_delay_boundary_changes_fill_price(self):
+        from data.orderbook_quotes import QuoteRow
+        from evolution.backtest import run_candidate
+        from evolution.market_state import EvolutionMarketState
+
+        states = []
+        quotes = []
+        for index, price in enumerate((100, 100, 100)):
+            ts_event = (index + 1) * 60_000_000_000
+            states.append(EvolutionMarketState(
+                "BTCUSDT.BINANCE", price, price, price, price, 1, 2, 1, 1,
+                0.5, 0.5, 0, 0, 0, 0, 0, 0, 99.9, 100.1, 20,
+                ts_event, ts_event + 2,
+            ))
+            quotes.extend([
+                QuoteRow(ts_event, "BTCUSDT.BINANCE", 99.9, 100.1, 100, 0.2, 20),
+                QuoteRow(ts_event + 1_000_000_000, "BTCUSDT.BINANCE", 100.9, 101.1, 101, 0.2, 20),
+            ])
+        immediate = run_candidate(
+            "evolution/baselines/buy_and_hold.py", "BTCUSDT.BINANCE", states, quotes=quotes,
+        )
+        delayed = run_candidate(
+            "evolution/baselines/buy_and_hold.py", "BTCUSDT.BINANCE", states,
+            execution_delay_seconds=1, quotes=quotes,
+        )
+        self.assertGreater(immediate.metrics.net_return, delayed.metrics.net_return)
+
     def test_one_second_signal_delay_uses_the_next_bbo(self):
         from evolution.backtest import _with_init_delay
         from evolution.market_state import EvolutionMarketState

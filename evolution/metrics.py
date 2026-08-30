@@ -10,6 +10,50 @@ REJECTED_SCORE = -1_000_000.0
 
 
 @dataclass(frozen=True)
+class DiagnosticMetrics:
+    gross_return: float
+    fee_drag: float
+    net_return: float
+    gross_sharpe: float
+    net_sharpe: float
+    turnover: float
+    average_holding_seconds: float | None
+    median_holding_seconds: float | None
+    average_gross_pnl_per_position: float | None
+    average_fee_per_position: float | None
+    best_daily_net_return: float | None
+    worst_daily_net_return: float | None
+    daily_gross_returns: tuple[float, ...] = ()
+    holding_durations_seconds: tuple[float, ...] = ()
+
+    def __post_init__(self) -> None:
+        numeric = (
+            self.gross_return,
+            self.fee_drag,
+            self.net_return,
+            self.gross_sharpe,
+            self.net_sharpe,
+            self.turnover,
+            *self.daily_gross_returns,
+            *self.holding_durations_seconds,
+        )
+        optional = (
+            self.average_holding_seconds,
+            self.median_holding_seconds,
+            self.average_gross_pnl_per_position,
+            self.average_fee_per_position,
+            self.best_daily_net_return,
+            self.worst_daily_net_return,
+        )
+        if not all(math.isfinite(value) for value in numeric):
+            raise ValueError("diagnostic metrics must be finite")
+        if not all(value is None or math.isfinite(value) for value in optional):
+            raise ValueError("optional diagnostic metrics must be finite")
+        if self.fee_drag < 0 or self.turnover < 0:
+            raise ValueError("fee drag and turnover cannot be negative")
+
+
+@dataclass(frozen=True)
 class FoldMetrics:
     net_return: float
     max_drawdown: float

@@ -60,10 +60,13 @@ small gross edge is consumed by turnover and execution costs.
 
 ### Deliverables
 
-- [ ] A reproducible discovery diagnostic command
-- [ ] Unit tests for all new metric calculations
-- [ ] A research note recording the diagnosis for the current smoke runs
-- [ ] No reads from validation or holdout datasets
+- [x] A reproducible discovery diagnostic command
+- [x] Unit tests for the baseline diagnostic metric calculations
+- [x] A research note recording the fixed-baseline diagnosis
+- [x] No reads from validation or holdout datasets
+
+Fixed baselines are complete. Smoke-run candidate ingestion remains deferred until the
+candidate artifact boundary is reviewed alongside executable discovery reranking.
 
 ## 1.2 Align discovery and promotion execution
 
@@ -81,10 +84,12 @@ Keep validation and holdout physically and logically isolated from both stages.
 
 ### Deliverables
 
-- [ ] A coarse-versus-executable comparison on discovery data
-- [ ] A documented execution model used consistently for final discovery ranking and promotion
-- [ ] Tests covering quote ordering, signal availability, delay, fees, and end-of-window positions
-- [ ] Deterministic reruns that reproduce metrics exactly
+- [x] A coarse-versus-executable comparison pipeline on discovery data
+- [x] Profile-aware manifests for 60-second/zero-delay and 1-second/one-delay discovery data
+- [x] Tests covering quote ordering, signal availability, delay, fees, and end-of-window positions
+- [x] Deterministic executable reruns that must reproduce metrics exactly
+- [x] An offline top-N executable discovery rerank command
+- [ ] Adopt the executable profile as the registered final discovery ranking model before the next formal search
 
 ## 1.3 Add cost and delay sensitivity
 

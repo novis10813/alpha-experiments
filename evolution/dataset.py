@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import shutil
 from decimal import Decimal
 from dataclasses import asdict
 from dataclasses import dataclass
@@ -15,7 +16,9 @@ from data.nautilus_catalog import make_catalog
 from evolution.market_state import EvolutionMarketState
 from evolution.instruments import build_instrument
 from evolution.instruments import build_bar_type
+from evolution.spec import EXECUTABLE_DISCOVERY_PROFILE
 from evolution.spec import SCHEMA_VERSION
+from evolution.spec import ExecutionProfile
 from evolution.spec import Window
 from nautilus_trader.model.data import OrderBookDepth10
 from nautilus_trader.model.identifiers import InstrumentId
@@ -44,6 +47,10 @@ class DatasetManifest:
     first_ts_event: int | None
     last_ts_event: int | None
     files: dict[str, str]
+    execution_profile: str = "fast"
+    quote_interval_seconds: int = 60
+    execution_delay_seconds: int = 0
+    quote_count: int = 0
 
 
 def build_market_states(
@@ -176,13 +183,20 @@ def write_manifest(manifest: DatasetManifest, path: Path) -> None:
     path.write_text(json.dumps(asdict(manifest), indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
-def verify_manifest(path: Path, instrument_id: str, split: str) -> DatasetManifest:
+def verify_manifest(
+    path: Path,
+    instrument_id: str,
+    split: str,
+    execution_profile: str | None = None,
+) -> DatasetManifest:
     payload = json.loads(path.read_text(encoding="utf-8"))
     manifest = DatasetManifest(**payload)
     if manifest.schema_version != SCHEMA_VERSION:
         raise ValueError(f"unsupported dataset schema version: {manifest.schema_version}")
     if manifest.instrument_id != instrument_id or manifest.split != split:
         raise ValueError("dataset manifest identity does not match requested split")
+    if execution_profile is not None and manifest.execution_profile != execution_profile:
+        raise ValueError("dataset manifest execution profile does not match request")
     root = path.parent
     actual = {str(item.relative_to(root)) for item in (root / "data").rglob("*.parquet")}
     if actual != set(manifest.files):
@@ -219,7 +233,61 @@ def manifest_for(
         first_ts_event=states[0].ts_event if states else None,
         last_ts_event=states[-1].ts_event if states else None,
         files=dict(sorted(files.items())),
+        execution_profile="fast",
+        quote_interval_seconds=window.quote_interval_seconds,
+        execution_delay_seconds=window.execution_delay_seconds,
     )
+
+
+def build_executable_discovery_from_fast(
+    instrument_id: str,
+    window: Window,
+    fast_root: Path,
+    output_root: Path,
+    profile: ExecutionProfile = EXECUTABLE_DISCOVERY_PROFILE,
+) -> DatasetManifest:
+    if not window.name.startswith("discovery_"):
+        raise ValueError("executable discovery data may use discovery windows only")
+    source = fast_root / window.name / instrument_id
+    fast_manifest = verify_manifest(source / "manifest.json", instrument_id, window.name)
+    target = output_root / window.name / instrument_id
+    if target.exists():
+        raise RuntimeError(f"local catalog already exists: {target}")
+    target.mkdir(parents=True)
+    for data_type in ("custom_evolution_market_state", "bar"):
+        source_type = source / "data" / data_type
+        if source_type.exists():
+            shutil.copytree(source_type, target / "data" / data_type)
+
+    catalog = make_catalog()
+    quotes = catalog.query(
+        OrderBookDepth10,
+        identifiers=[instrument_id],
+        start=fast_manifest.source_start,
+        end=fast_manifest.source_end,
+    )
+    quote_rows = depths_to_quote_rows(quotes, resample_seconds=profile.quote_interval_seconds)
+    local_catalog = ParquetDataCatalog(target)
+    _write_catalog_chunk(local_catalog, [], quote_rows, instrument_id)
+    files = _catalog_hashes(target)
+    manifest = DatasetManifest(
+        schema_version=SCHEMA_VERSION,
+        instrument_id=instrument_id,
+        split=window.name,
+        source_start=fast_manifest.source_start,
+        source_end=fast_manifest.source_end,
+        row_count=fast_manifest.row_count,
+        missing_bucket_count=fast_manifest.missing_bucket_count,
+        first_ts_event=fast_manifest.first_ts_event,
+        last_ts_event=fast_manifest.last_ts_event,
+        files=dict(sorted(files.items())),
+        execution_profile=profile.name,
+        quote_interval_seconds=profile.quote_interval_seconds,
+        execution_delay_seconds=profile.execution_delay_seconds,
+        quote_count=len(quote_rows),
+    )
+    write_manifest(manifest, target / "manifest.json")
+    return manifest
 
 
 def build_window_from_catalog(instrument_id: str, window: Window, output_root: Path) -> DatasetManifest:
@@ -267,6 +335,9 @@ def build_window_from_catalog(instrument_id: str, window: Window, output_root: P
         first_ts_event=first_ts_event,
         last_ts_event=last_ts_event,
         files=dict(sorted(_catalog_hashes(split_dir).items())),
+        execution_profile="fast",
+        quote_interval_seconds=window.quote_interval_seconds,
+        execution_delay_seconds=window.execution_delay_seconds,
     )
     write_manifest(manifest, split_dir / "manifest.json")
     return manifest

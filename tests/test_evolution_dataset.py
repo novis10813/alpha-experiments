@@ -88,6 +88,39 @@ class EvolutionDatasetTests(unittest.TestCase):
         self.assertEqual(len(manifest.files["data"]), 64)
         self.assertNotIn("secret", str(manifest).lower())
 
+    def test_manifest_execution_profile_guard(self):
+        from evolution.dataset import manifest_for
+        from evolution.dataset import verify_manifest
+        from evolution.dataset import write_manifest
+        from evolution.spec import Window
+        from evolution.spec import utc
+
+        window = Window("discovery_1", utc("2026-01-01T00:00:00Z"), utc("2026-01-01T00:01:00Z"), 60, 0)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "data").mkdir()
+            manifest = manifest_for("BTCUSDT.BINANCE", window, [], {})
+            write_manifest(manifest, root / "manifest.json")
+            verified = verify_manifest(
+                root / "manifest.json", "BTCUSDT.BINANCE", "discovery_1", "fast",
+            )
+            self.assertEqual(verified.quote_interval_seconds, 60)
+            with self.assertRaisesRegex(ValueError, "execution profile"):
+                verify_manifest(
+                    root / "manifest.json", "BTCUSDT.BINANCE", "discovery_1", "executable",
+                )
+
+    def test_executable_builder_rejects_non_discovery_window(self):
+        from evolution.dataset import build_executable_discovery_from_fast
+        from evolution.spec import Window
+        from evolution.spec import utc
+
+        window = Window("validation", utc("2026-01-01T00:00:00Z"), utc("2026-01-01T00:01:00Z"), 1, 1)
+        with self.assertRaisesRegex(ValueError, "discovery windows only"):
+            build_executable_discovery_from_fast(
+                "BTCUSDT.BINANCE", window, Path("fast"), Path("output"),
+            )
+
     def test_local_nautilus_catalog_round_trip_and_manifest_verification(self):
         from data.orderbook_quotes import QuoteRow
         from evolution.dataset import manifest_for

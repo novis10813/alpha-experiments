@@ -32,7 +32,7 @@ def main() -> None:
         run_candidate(PROGRAM_PATH, instrument_id, _synthetic_states(instrument_id))
         folds = []
         for index, window in enumerate(DISCOVERY_FOLDS):
-            states, quotes, bars = _load_split(DATASET_ROOT / window.name / instrument_id, instrument_id)
+            states, quotes, bars = load_split(DATASET_ROOT / window.name / instrument_id, instrument_id)
             if index == 0:
                 screen_end = states[0].ts_event + 7 * 86_400_000_000_000 if states else 0
                 screen = run_candidate(
@@ -54,7 +54,7 @@ def main() -> None:
         print(json.dumps({"ok": False, "stage": stage, "error": message}))
 
 
-def _load_split(path: Path, instrument_id: str):
+def load_split(path: Path, instrument_id: str):
     verify_manifest(path / "manifest.json", instrument_id, path.parent.name)
     catalog = ParquetDataCatalog(path)
     wrapped = catalog.query(EvolutionMarketState, identifiers=[instrument_id])

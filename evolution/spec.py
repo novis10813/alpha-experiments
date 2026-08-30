@@ -17,6 +17,21 @@ POSITION_NOTIONAL_USDT = 10_000
 FEE_RATE = 0.001
 
 
+@dataclass(frozen=True)
+class ExecutionProfile:
+    name: str
+    quote_interval_seconds: int
+    execution_delay_seconds: int
+
+    def __post_init__(self) -> None:
+        if self.quote_interval_seconds <= 0 or self.execution_delay_seconds < 0:
+            raise ValueError("invalid execution profile")
+
+
+FAST_DISCOVERY_PROFILE = ExecutionProfile("fast", 60, 0)
+EXECUTABLE_DISCOVERY_PROFILE = ExecutionProfile("executable", 1, 1)
+
+
 def utc(value: str) -> datetime:
     parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     if parsed.tzinfo is None:

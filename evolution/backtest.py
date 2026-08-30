@@ -12,7 +12,9 @@ from evolution.instruments import SPECS
 from evolution.instruments import build_instrument
 from evolution.instruments import build_bar_type
 from evolution.market_state import EvolutionMarketState
+from evolution.metrics import DiagnosticMetrics
 from evolution.metrics import FoldMetrics
+from evolution.metrics import annualized_sharpe
 from evolution.metrics import max_drawdown
 from evolution.metrics import profit_factor
 from evolution.spec import STARTING_BALANCE_USDT
@@ -41,6 +43,7 @@ class BacktestResult:
     metrics: FoldMetrics
     fill_count: int
     position_count: int
+    diagnostics: DiagnosticMetrics
 
 
 def run_candidate(
@@ -103,18 +106,31 @@ def run_candidate(
             equity.append(final_balance)
         exposure = _exposure_ratio(positions, states[0].ts_event, states[-1].ts_event)
         rejected = _has_rejection(engine)
+        daily_net_returns, daily_gross_returns = _daily_return_series(
+            states,
+            fills,
+            execution_delay_seconds,
+        )
+        net_return = (final_balance - STARTING_BALANCE_USDT) / STARTING_BALANCE_USDT
+        diagnostics = _diagnostic_metrics(
+            fills,
+            positions,
+            net_return,
+            daily_net_returns,
+            daily_gross_returns,
+        )
         metrics = FoldMetrics(
-            net_return=(final_balance - STARTING_BALANCE_USDT) / STARTING_BALANCE_USDT,
+            net_return=net_return,
             max_drawdown=max_drawdown(equity),
             profit_factor=profit_factor(closed_pnls),
             closed_positions=len(positions),
             orders=len(orders_report),
             exposure_ratio=exposure,
-            daily_returns=_daily_returns(states, fills, execution_delay_seconds),
+            daily_returns=daily_net_returns,
             rejected=rejected,
             error="order rejection" if rejected else None,
         )
-        return BacktestResult(metrics, len(fills), len(positions))
+        return BacktestResult(metrics, len(fills), len(positions), diagnostics)
     finally:
         engine.dispose()
 
@@ -214,6 +230,14 @@ def _timestamp_ns(value) -> int:
 
 
 def _daily_returns(states: list[EvolutionMarketState], fills, delay_seconds: int) -> tuple[float, ...]:
+    return _daily_return_series(states, fills, delay_seconds)[0]
+
+
+def _daily_return_series(
+    states: list[EvolutionMarketState],
+    fills,
+    delay_seconds: int,
+) -> tuple[tuple[float, ...], tuple[float, ...]]:
     day_ns = 86_400_000_000_000
     day_ends: dict[int, EvolutionMarketState] = {}
     for state in states:
@@ -221,10 +245,12 @@ def _daily_returns(states: list[EvolutionMarketState], fills, delay_seconds: int
 
     fill_rows = [] if fills is None else fills.to_dict(orient="records")
     fill_rows.sort(key=lambda row: _timestamp_ns(row["ts_last"]))
-    cash = float(STARTING_BALANCE_USDT)
+    gross_cash = float(STARTING_BALANCE_USDT)
+    fees = 0.0
     quantity = 0.0
     fill_index = 0
-    equities = [cash]
+    gross_equities = [gross_cash]
+    net_equities = [gross_cash]
     for day in sorted(day_ends):
         state = day_ends[day]
         cutoff = state.ts_event + delay_seconds * 1_000_000_000 + 2
@@ -234,18 +260,79 @@ def _daily_returns(states: list[EvolutionMarketState], fills, delay_seconds: int
             price = float(row["avg_px"])
             commission = _commission_total(row.get("commissions", []))
             if str(row["side"]).upper() == "BUY":
-                cash -= filled * price + commission
+                gross_cash -= filled * price
                 quantity += filled
             else:
-                cash += filled * price - commission
+                gross_cash += filled * price
                 quantity -= filled
+            fees += commission
             fill_index += 1
-        equities.append(cash + quantity * state.best_bid)
+        gross_equity = gross_cash + quantity * state.best_bid
+        gross_equities.append(gross_equity)
+        net_equities.append(gross_equity - fees)
+    return _returns(net_equities), _returns(gross_equities)
+
+
+def _returns(equities: list[float]) -> tuple[float, ...]:
     return tuple(
         (current - previous) / previous
         for previous, current in zip(equities, equities[1:])
         if previous > 0
     )
+
+
+def _diagnostic_metrics(
+    fills,
+    positions,
+    net_return: float,
+    daily_net_returns: tuple[float, ...],
+    daily_gross_returns: tuple[float, ...],
+) -> DiagnosticMetrics:
+    fill_rows = [] if fills is None else fills.to_dict(orient="records")
+    total_fees = sum(_commission_total(row.get("commissions", [])) for row in fill_rows)
+    turnover = sum(float(str(row["filled_qty"])) * float(row["avg_px"]) for row in fill_rows)
+    durations = _holding_durations(positions)
+    closed_positions = 0 if positions is None else len(positions)
+    fee_drag = total_fees / STARTING_BALANCE_USDT
+    gross_return = net_return + fee_drag
+    return DiagnosticMetrics(
+        gross_return=gross_return,
+        fee_drag=fee_drag,
+        net_return=net_return,
+        gross_sharpe=annualized_sharpe(daily_gross_returns),
+        net_sharpe=annualized_sharpe(daily_net_returns),
+        turnover=turnover / STARTING_BALANCE_USDT,
+        average_holding_seconds=sum(durations) / len(durations) if durations else None,
+        median_holding_seconds=_median(durations),
+        average_gross_pnl_per_position=(gross_return * STARTING_BALANCE_USDT / closed_positions)
+        if closed_positions else None,
+        average_fee_per_position=total_fees / closed_positions if closed_positions else None,
+        best_daily_net_return=max(daily_net_returns, default=None),
+        worst_daily_net_return=min(daily_net_returns, default=None),
+        daily_gross_returns=daily_gross_returns,
+        holding_durations_seconds=tuple(durations),
+    )
+
+
+def _holding_durations(report) -> list[float]:
+    if report is None or len(report) == 0:
+        return []
+    if "ts_opened" not in report.columns or "ts_closed" not in report.columns:
+        return []
+    return [
+        max(0, _timestamp_ns(closed) - _timestamp_ns(opened)) / 1_000_000_000
+        for opened, closed in zip(report.ts_opened, report.ts_closed)
+    ]
+
+
+def _median(values: list[float]) -> float | None:
+    if not values:
+        return None
+    ordered = sorted(values)
+    middle = len(ordered) // 2
+    if len(ordered) % 2:
+        return ordered[middle]
+    return (ordered[middle - 1] + ordered[middle]) / 2
 
 
 def _commission_total(commissions) -> float:
