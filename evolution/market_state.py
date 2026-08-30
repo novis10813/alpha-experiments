@@ -15,7 +15,10 @@ class EvolutionMarketState(Data):
         "instrument_id", "open", "high", "low", "close", "volume", "trade_count",
         "buy_trade_count", "sell_trade_count", "buy_volume", "sell_volume", "trade_imbalance",
         "volume_imbalance", "depth10_obi_mean", "depth10_obi_last", "depth10_obi_min",
-        "depth10_obi_max", "best_bid", "best_ask", "spread_bps", "ts_event", "ts_init",
+        "depth10_obi_max", "best_bid", "best_ask", "spread_bps", "return_5m", "return_15m",
+        "return_60m", "close_location", "realized_volatility_15m", "relative_volume_15m",
+        "relative_trade_density_15m", "signed_flow_persistence_5m", "obi_change_5m",
+        "relative_spread_15m", "ts_event", "ts_init",
     )
 
     def __init__(
@@ -42,6 +45,17 @@ class EvolutionMarketState(Data):
         spread_bps: float,
         ts_event: int,
         ts_init: int,
+        *,
+        return_5m: float = 0.0,
+        return_15m: float = 0.0,
+        return_60m: float = 0.0,
+        close_location: float = 0.5,
+        realized_volatility_15m: float = 0.0,
+        relative_volume_15m: float = 1.0,
+        relative_trade_density_15m: float = 1.0,
+        signed_flow_persistence_5m: float = 0.0,
+        obi_change_5m: float = 0.0,
+        relative_spread_15m: float = 1.0,
     ) -> None:
         self.instrument_id = (
             instrument_id if isinstance(instrument_id, InstrumentId) else InstrumentId.from_str(instrument_id)
@@ -65,6 +79,16 @@ class EvolutionMarketState(Data):
         self.best_bid = best_bid
         self.best_ask = best_ask
         self.spread_bps = spread_bps
+        self.return_5m = return_5m
+        self.return_15m = return_15m
+        self.return_60m = return_60m
+        self.close_location = close_location
+        self.realized_volatility_15m = realized_volatility_15m
+        self.relative_volume_15m = relative_volume_15m
+        self.relative_trade_density_15m = relative_trade_density_15m
+        self.signed_flow_persistence_5m = signed_flow_persistence_5m
+        self.obi_change_5m = obi_change_5m
+        self.relative_spread_15m = relative_spread_15m
         self._ts_event = ts_event
         self._ts_init = ts_init
 
@@ -98,6 +122,16 @@ class EvolutionMarketState(Data):
             ("best_bid", pa.float64()),
             ("best_ask", pa.float64()),
             ("spread_bps", pa.float64()),
+            ("return_5m", pa.float64()),
+            ("return_15m", pa.float64()),
+            ("return_60m", pa.float64()),
+            ("close_location", pa.float64()),
+            ("realized_volatility_15m", pa.float64()),
+            ("relative_volume_15m", pa.float64()),
+            ("relative_trade_density_15m", pa.float64()),
+            ("signed_flow_persistence_5m", pa.float64()),
+            ("obi_change_5m", pa.float64()),
+            ("relative_spread_15m", pa.float64()),
             ("ts_event", pa.uint64()),
             ("ts_init", pa.uint64()),
         ],

@@ -69,6 +69,7 @@ def _build_market_states(
     depths: Iterable[object],
     previous_price: float | None,
     previous_sign: int,
+    feature_history: list[EvolutionMarketState] | None = None,
 ) -> tuple[list[EvolutionMarketState], float | None, int]:
     trades = sorted(trade_ticks, key=lambda tick: int(getattr(tick, "ts_event")))
     books = sorted(depths, key=lambda depth: int(getattr(depth, "ts_event")))
@@ -118,7 +119,88 @@ def _build_market_states(
                 ts_event=end, ts_init=end + STATE_INIT_OFFSET_NS,
             ),
         )
+
+    history = feature_history if feature_history is not None else []
+    completed = [*history, *states]
+    for index, state in enumerate(states):
+        position = len(history) + index
+        prior = completed[:position]
+        close_location = _close_location(state.high, state.low, state.close)
+        close_returns = [
+            _return(item.close, completed[item_index - 1].close)
+            for item_index, item in enumerate(completed[:position + 1])
+            if item_index > 0
+        ]
+        state.return_5m = _return_at_horizon(completed, position, 5)
+        state.return_15m = _return_at_horizon(completed, position, 15)
+        state.return_60m = _return_at_horizon(completed, position, 60)
+        state.close_location = close_location
+        state.realized_volatility_15m = (
+            _population_stddev(close_returns[-15:]) if len(close_returns) >= 15 else 0.0
+        )
+        state.relative_volume_15m = _relative_to_prior(
+            state.volume, [item.volume for item in prior[-15:]], 1.0,
+        )
+        state.relative_trade_density_15m = _relative_to_prior(
+            state.trade_count, [item.trade_count for item in prior[-15:]], 1.0,
+        )
+        state.signed_flow_persistence_5m = (
+            _finite_value(
+                sum(item.volume_imbalance for item in completed[position - 4:position + 1]) / 5,
+                0.0,
+            )
+            if position >= 4 else 0.0
+        )
+        state.obi_change_5m = (
+            _finite_value(state.volume_imbalance - completed[position - 5].volume_imbalance, 0.0)
+            if position >= 5 else 0.0
+        )
+        state.relative_spread_15m = _relative_to_prior(
+            state.spread_bps, [item.spread_bps for item in prior[-15:]], 1.0,
+        )
+    if feature_history is not None:
+        feature_history.extend(states)
     return states, previous_price, previous_sign
+
+
+def _finite_value(value: float, neutral: float) -> float:
+    return value if math.isfinite(value) else neutral
+
+
+def _return(current: float, previous: float) -> float:
+    if not math.isfinite(current) or not math.isfinite(previous) or previous == 0:
+        return 0.0
+    return _finite_value(current / previous - 1.0, 0.0)
+
+
+def _return_at_horizon(
+    states: list[EvolutionMarketState], position: int, horizon: int,
+) -> float:
+    return _return(states[position].close, states[position - horizon].close) if position >= horizon else 0.0
+
+
+def _close_location(high: float, low: float, close: float) -> float:
+    range_ = high - low
+    if not math.isfinite(range_) or range_ == 0 or not math.isfinite(close) or not math.isfinite(low):
+        return 0.5
+    return _finite_value((close - low) / range_, 0.5)
+
+
+def _relative_to_prior(current: float, prior: list[float], neutral: float) -> float:
+    if len(prior) < 15 or not math.isfinite(current):
+        return neutral
+    baseline = sum(prior) / len(prior)
+    if not math.isfinite(baseline) or baseline == 0:
+        return neutral
+    return _finite_value(current / baseline, neutral)
+
+
+def _population_stddev(values: list[float]) -> float:
+    """Return the simple population standard deviation of completed-bar returns."""
+    if not values or any(not math.isfinite(value) for value in values):
+        return 0.0
+    average = sum(values) / len(values)
+    return _finite_value(math.sqrt(sum((value - average) ** 2 for value in values) / len(values)), 0.0)
 
 
 def write_state_file(states: list[EvolutionMarketState], path: Path) -> str:
@@ -338,6 +420,7 @@ def build_window_from_catalog(instrument_id: str, window: Window, output_root: P
     last_ts_event: int | None = None
     previous_price: float | None = None
     previous_sign = 0
+    feature_history: list[EvolutionMarketState] = []
     day = window.start
     while day < window.end:
         day_end = min(day + timedelta(days=1), window.end)
@@ -355,6 +438,7 @@ def build_window_from_catalog(instrument_id: str, window: Window, output_root: P
             depths,
             previous_price,
             previous_sign,
+            feature_history,
         )
         aggregate_seconds = perf_counter() - stage_started
         stage_started = perf_counter()

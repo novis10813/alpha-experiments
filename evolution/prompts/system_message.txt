@@ -18,7 +18,11 @@ Hard contract:
 - on_data receives an EvolutionMarketState with open, high, low, close, volume, trade_count,
   buy_trade_count, sell_trade_count, buy_volume, sell_volume, trade_imbalance,
   volume_imbalance, depth10_obi_mean, depth10_obi_last, depth10_obi_min,
-  depth10_obi_max, best_bid, best_ask, spread_bps, ts_event, and ts_init.
+  depth10_obi_max, best_bid, best_ask, spread_bps, return_5m, return_15m,
+  return_60m, close_location, realized_volatility_15m, relative_volume_15m,
+  relative_trade_density_15m, signed_flow_persistence_5m, obi_change_5m,
+  relative_spread_15m, ts_event, and ts_init. All fields use the current completed
+  one-minute bar and earlier completed bars only; ts_event is the bucket-end timestamp.
 - Enter only through self.enter_long(state.close) and exit only through self.exit_long().
   Never submit orders directly, short, use limit orders, or alter position sizing.
 - Do not access files, the network, subprocesses, environment variables, reflection, dynamic
