@@ -26,6 +26,28 @@ class EvolutionRerankTests(unittest.TestCase):
         self.assertEqual(Path(candidates[0]["program_path"]).name, "01-c1.py")
         self.assertEqual(candidates[0]["fast_rank"], 1)
 
+    def test_invalid_candidate_is_rejected_before_run_candidate(self):
+        from evolution.rerank import _evaluate
+        from evolution.families import FAMILY_REGISTRY
+
+        family = FAMILY_REGISTRY["trend-flow-confirmation-v1"]
+        with tempfile.TemporaryDirectory() as directory:
+            run = Path(directory)
+            reference = run / "initial_program.py"
+            reference.write_text(family.seed_program.read_text(encoding="utf-8"), encoding="utf-8")
+            (run / "run_metadata.json").write_text(json.dumps({
+                "family_id": family.family_id,
+                "seed_program_sha256": __import__("hashlib").sha256(reference.read_bytes()).hexdigest(),
+            }), encoding="utf-8")
+            candidate = run / "candidate.py"
+            candidate.write_text(reference.read_text(encoding="utf-8").replace(
+                family.family_id, "pullback-exhaustion-v1", 1,
+            ), encoding="utf-8")
+            with patch("evolution.backtest.run_candidate") as run_candidate:
+                with self.assertRaisesRegex(ValueError, "candidate validation failed"):
+                    _evaluate(candidate, "BTCUSDT.BINANCE", [], run)
+            run_candidate.assert_not_called()
+
     def test_comparison_reports_execution_degradation(self):
         from evolution.rerank import _comparison
 

@@ -182,6 +182,21 @@ class EvolutionRuleSchemaTests(unittest.TestCase):
         self.assertEqual(json.loads(first_result.canonical_json)["exit"]["mode"], "any")
         self.assertEqual(canonical_rule_json(first_result.spec), first_result.canonical_json)
 
+    def test_integer_and_float_thresholds_have_identical_canonical_signatures(self):
+        integer = {
+            "family_id": "down-streak-risk-off-btc-v1",
+            "entry": {"conditions": [{"feature": "return_5m", "op": "gt", "value": 0}], "confirmations": 1},
+            "exit": {"conditions": [{"feature": "return_5m", "op": "lt", "value": -0.02}], "confirmations": 1, "min_hold_bars": 1},
+            "cooldown_bars": 0,
+        }
+        floating = {
+            **integer,
+            "entry": {"conditions": [{"feature": "return_5m", "op": "gt", "value": 0.0}], "confirmations": 1},
+            "cooldown_bars": 0,
+        }
+        self.assertEqual(canonical_rule_json(integer), canonical_rule_json(floating))
+        self.assertEqual(rule_source_signature(integer), rule_source_signature(floating))
+
 
 if __name__ == "__main__":
     unittest.main()

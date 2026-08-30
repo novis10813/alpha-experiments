@@ -17,6 +17,16 @@ class EvolutionEvaluatorTests(unittest.TestCase):
         self.assertEqual(result.metrics["combined_score"], -1_000_000)
         self.assertLess(result.get_total_artifact_size(), 3000)
 
+    @patch("evolution.evaluator.validate_candidate_file")
+    def test_empty_family_environment_is_passed_as_none(self, validate):
+        from evolution.evaluator import evaluate
+        from evolution.candidate import ValidationResult
+
+        validate.return_value = ValidationResult(False, ("rejected",), 0.0)
+        with patch.dict(os.environ, {"EVOLUTION_FAMILY_ID": ""}, clear=False):
+            evaluate("evolution/initial_program.py")
+        self.assertIsNone(validate.call_args.args[2])
+
     @patch("evolution.evaluator.run_sandbox")
     def test_sandbox_metrics_are_returned_with_complexity(self, sandbox):
         from evolution.evaluator import evaluate

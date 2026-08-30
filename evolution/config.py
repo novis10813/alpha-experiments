@@ -18,10 +18,11 @@ Family rule grammar (schema-v2): RULE_SPEC is exactly one class-level literal
 plain mapping with keys family_id, entry, exit, and cooldown_bars. entry and
 exit each have a flat conditions list of {feature, op, value}; entry also has
 confirmations, while exit has confirmations, min_hold_bars, and mode (all or
-any). Use only trusted features and gt/gte/lt/lte. Each mutation changes one
-oralizable rule component only: one feature, operator, threshold, confirmation
-count, exit mode, minimum hold, or cooldown. Do not add code or unrestricted
-LLM feedback.
+any). Use only the family-specific feature allowlist and role assignments in
+the family context, with gt/gte/lt/lte. Each mutation changes one oralizable
+rule component only: one feature, operator, threshold, confirmation count,
+exit mode, minimum hold, or cooldown. Do not add code or unrestricted LLM
+feedback.
 """
 _FAMILY_DIFF_PROMPT = """# Declarative family mutation task
 

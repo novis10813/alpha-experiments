@@ -11,8 +11,7 @@ from statistics import median
 from statistics import pstdev
 
 from evolution.market_state import EvolutionMarketState
-from evolution.spec import POSITION_NOTIONAL_USDT
-from nautilus_trader.config import StrategyConfig
+from evolution.strategy_base import EvolutionStrategyConfig
 from nautilus_trader.model.data import BarType
 from nautilus_trader.model.data import CustomData
 from nautilus_trader.model.data import DataType
@@ -26,14 +25,6 @@ from nautilus_trader.indicators import BollingerBands
 from nautilus_trader.indicators import ExponentialMovingAverage
 from nautilus_trader.indicators import RelativeStrengthIndex
 from nautilus_trader.indicators import SimpleMovingAverage
-
-
-class EvolutionStrategyConfig(StrategyConfig, frozen=True):
-    instrument_id: InstrumentId
-    bar_type: BarType
-    state_data_type: DataType
-    position_notional: Decimal = Decimal(POSITION_NOTIONAL_USDT)
-    close_positions_on_stop: bool = True
 
 
 class EvolvedStrategy(Strategy):

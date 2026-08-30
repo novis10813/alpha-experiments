@@ -31,6 +31,13 @@ class CandidateValidationTests(unittest.TestCase):
             self.assertFalse(result.valid)
             self.assertIn(expected, " ".join(result.errors))
 
+    def test_source_signature_handles_class_level_assignment_formatting_and_numeric_equivalence(self):
+        from evolution.signatures import source_signature
+
+        reference = Path("evolution/families/down-streak-risk-off-btc-v1/initial_program.py").read_text(encoding="utf-8")
+        reordered = reference.replace('"value": 0.0', '"value": 0', 1)
+        self.assertEqual(source_signature(reference), source_signature(reordered))
+
     def test_source_signature_ignores_comments_and_formatting_but_not_literals(self):
         from evolution.candidate import EVOLVE_END, EVOLVE_START
         from evolution.signatures import source_signature
@@ -52,7 +59,11 @@ class CandidateValidationTests(unittest.TestCase):
     def test_skeleton_change_and_direct_order_factory_are_rejected(self):
         from evolution.candidate import validate_candidate
 
-        changed = self.reference.replace("POSITION_NOTIONAL_USDT", "STARTING_BALANCE_USDT", 1)
+        changed = self.reference.replace(
+            "from evolution.strategy_base import EvolutionStrategyConfig",
+            "from evolution.strategy_base import StrategyConfig",
+            1,
+        )
         self.assertIn("skeleton", " ".join(validate_candidate(changed, self.reference).errors))
         direct = self.reference.replace(
             "        state: EvolutionMarketState = data\n",

@@ -27,3 +27,4 @@ Use only this exact diff format, with SEARCH text copied exactly from the curren
 
 You may provide multiple SEARCH/REPLACE edits. Keep each change focused; do not rewrite the
 whole file. Briefly explain the market-structure hypothesis after the diffs.
+Use only features permitted by the family context and only in the stated roles.

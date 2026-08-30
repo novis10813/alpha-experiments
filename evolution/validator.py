@@ -5,7 +5,6 @@ from dataclasses import asdict
 from pathlib import Path
 
 from data.orderbook_quotes import QuoteRow
-from evolution.backtest import run_candidate
 from evolution.ledger import acquire_holdout_lock
 from evolution.ledger import complete_holdout
 from evolution.ledger import record_validation
@@ -19,6 +18,9 @@ from evolution.selection import validation_champion
 from evolution.qualification import qualify_discovery
 from evolution.report import write_research_report
 from evolution.dataset import verify_manifest
+from evolution.run_context import run_validation_context
+from evolution.run_context import validate_run_candidate
+from evolution.spec import ResearchStatus
 from nautilus_trader.model.identifiers import InstrumentId
 from nautilus_trader.persistence.catalog.parquet import ParquetDataCatalog
 
@@ -56,13 +58,55 @@ def promote_top_candidates(
         )
         return payload
     index = json.loads((run_dir / "top_candidates" / "index.json").read_text(encoding="utf-8"))
+    context = run_validation_context(run_dir)
+    if context.expected_family_id is not None and context.expected_family_id != family_id:
+        raise ValueError(
+            f"promotion family {family_id!r} does not match immutable run family "
+            f"{context.expected_family_id!r}",
+        )
+    candidates: list[tuple[dict[str, object], Path, AggregateMetrics]] = []
+    for entry in index[:10]:
+        path = _candidate_path(run_dir, entry)
+        validation = validate_run_candidate(run_dir, path)
+        if validation.valid:
+            candidates.append((entry, path, _aggregate_from_dict(entry["metrics"])))
+    if not candidates:
+        payload = {
+            "instrument_id": instrument_id,
+            "family_id": family_id,
+            "status": ResearchStatus.REJECTED.value,
+            "qualified": True,
+            "candidate_id": qualification.candidate_id,
+            "reason": "no_valid_candidates",
+            "validation_accessed": False,
+            "holdout_accessed": False,
+        }
+        (run_dir / "promotion-rejected.json").write_text(
+            json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8",
+        )
+        return payload
+    from evolution.backtest import run_candidate
+
     validation_states, validation_quotes, validation_bars = _load_split(dataset_root, "validation", instrument_id)
     record_validation(governance_root, family_id, instrument_id, run_id)
+    if not validation_states:
+        payload = {
+            "instrument_id": instrument_id,
+            "family_id": family_id,
+            "status": ResearchStatus.INCONCLUSIVE.value,
+            "qualified": True,
+            "candidate_id": qualification.candidate_id,
+            "reason": "empty_validation_pool",
+            "validation_accessed": True,
+            "holdout_accessed": False,
+        }
+        (run_dir / "promotion-inconclusive.json").write_text(
+            json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8",
+        )
+        return payload
     evaluated: list[CandidateResult] = []
     paths: dict[str, Path] = {}
-    for entry in index[:10]:
-        discovery = _aggregate_from_dict(entry["metrics"])
-        path = _candidate_path(run_dir, entry)
+    for entry, path, discovery in candidates:
         first = run_candidate(path, instrument_id, validation_states, 1, validation_quotes, validation_bars).metrics
         second = run_candidate(path, instrument_id, validation_states, 1, validation_quotes, validation_bars).metrics
         if first != second:
@@ -70,6 +114,21 @@ def promote_top_candidates(
         candidate = CandidateResult(entry["candidate_id"], discovery, validation=first)
         evaluated.append(candidate)
         paths[candidate.candidate_id] = path
+    if not evaluated:
+        payload = {
+            "instrument_id": instrument_id,
+            "family_id": family_id,
+            "status": ResearchStatus.REJECTED.value,
+            "qualified": True,
+            "candidate_id": qualification.candidate_id,
+            "reason": "no_valid_candidates",
+            "validation_accessed": True,
+            "holdout_accessed": False,
+        }
+        (run_dir / "promotion-rejected.json").write_text(
+            json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8",
+        )
+        return payload
     champion = validation_champion(evaluated)
     acquire_holdout_lock(governance_root, family_id, instrument_id, run_id, champion.candidate_id)
     holdout_states, holdout_quotes, holdout_bars = _load_split(dataset_root, "holdout", instrument_id)

@@ -414,7 +414,11 @@ def _source_block(source: str) -> str:
 
 
 def _condition_dict(condition: Condition) -> dict[str, object]:
-    return {"feature": condition.feature, "op": condition.op, "value": condition.value}
+    # JSON distinguishes 0 from 0.0 even though both are the same threshold.
+    # Normalize integral values (including negative zero) before signing.
+    value = condition.value
+    normalized = int(value) if float(value).is_integer() else float(value)
+    return {"feature": condition.feature, "op": condition.op, "value": normalized}
 
 
 def _error(category: RejectionCategory, path: str, message: str) -> RuleValidationError:

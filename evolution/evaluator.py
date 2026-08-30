@@ -24,7 +24,7 @@ def evaluate(program_path: str) -> EvaluationResult:
     validation = validate_candidate_file(
         program_path,
         reference_path(),
-        os.environ.get("EVOLUTION_FAMILY_ID"),
+        os.environ.get("EVOLUTION_FAMILY_ID") or None,
     )
     if not validation.valid:
         return _failure(1, "; ".join(validation.errors), validation.complexity)

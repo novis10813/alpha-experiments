@@ -4,7 +4,6 @@ import json
 from pathlib import Path
 
 from evolution.backtest import BacktestResult
-from evolution.backtest import run_candidate
 from evolution.diagnostic import BASELINES
 from evolution.diagnostic import _candidate_payload
 from evolution.diagnostic import discovery_split
@@ -37,9 +36,10 @@ def rerank_discovery_candidates(
     results = []
     for candidate in candidates:
         program_path = Path(str(candidate["program_path"]))
-        fast = _evaluate(program_path, instrument_id, fast_data)
-        executable = _evaluate(program_path, instrument_id, executable_data)
-        repeated = _evaluate(program_path, instrument_id, executable_data)
+        is_evolved_candidate = candidate["fast_rank"] is not None
+        fast = _evaluate(program_path, instrument_id, fast_data, run_directory if is_evolved_candidate else None)
+        executable = _evaluate(program_path, instrument_id, executable_data, run_directory if is_evolved_candidate else None)
+        repeated = _evaluate(program_path, instrument_id, executable_data, run_directory if is_evolved_candidate else None)
         deterministic = executable == repeated
         if not deterministic:
             raise RuntimeError(f"non-deterministic executable rerun: {candidate['candidate_id']}")
@@ -93,7 +93,23 @@ def _load_discovery_data(dataset_root: Path, instrument_id: str, profile: str):
     return data
 
 
-def _evaluate(program_path: Path, instrument_id: str, data) -> dict[str, object]:
+def _evaluate(
+    program_path: Path,
+    instrument_id: str,
+    data,
+    run_directory: Path | None = None,
+) -> dict[str, object]:
+    if run_directory is not None:
+        from evolution.run_context import validate_run_candidate
+
+        validation = validate_run_candidate(run_directory, program_path)
+        if not validation.valid:
+            raise ValueError(
+                f"candidate validation failed for {program_path}: "
+                + "; ".join(validation.errors),
+            )
+    from evolution.backtest import run_candidate
+
     folds: list[BacktestResult] = []
     for delay, states, quotes, bars in data:
         folds.append(run_candidate(

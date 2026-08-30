@@ -76,10 +76,13 @@ class RuleInterpreterStrategy(EvolutionStrategyBase):
         if self.portfolio.is_flat(self.config.instrument_id):
             self.hold_bars = 0
             self.exit_confirmations = 0
-            self.cooldown_bars = max(0, self.cooldown_bars - 1)
+            if self.cooldown_bars > 0:
+                self.cooldown_bars -= 1
+                self.entry_confirmations = 0
+                return
             matched = self._matches(self._rule_spec["entry"]["conditions"], "all", state)
             self.entry_confirmations = self.entry_confirmations + 1 if matched else 0
-            if self.cooldown_bars == 0 and self.entry_confirmations >= self._rule_spec["entry"]["confirmations"]:
+            if self.entry_confirmations >= self._rule_spec["entry"]["confirmations"]:
                 self.enter_long(state.close)
                 self.entry_confirmations = 0
             return

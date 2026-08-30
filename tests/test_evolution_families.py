@@ -102,8 +102,12 @@ class EvolutionFamilyTests(unittest.TestCase):
                 family.seed_program.read_bytes()
             ).hexdigest())
             self.assertEqual(len(metadata["composed_prompt_sha256"]), 64)
-            self.assertIn(family.prompt_context, (result.output_directory / "prompts/system_message.txt").read_text())
-            self.assertNotIn(family.prompt_context, (result.output_directory / "prompts/diff_user.txt").read_text())
+            system_prompt = (result.output_directory / "prompts/system_message.txt").read_text()
+            diff_prompt = (result.output_directory / "prompts/diff_user.txt").read_text()
+            self.assertIn(family.prompt_context, system_prompt)
+            self.assertNotIn(family.prompt_context, diff_prompt)
+            self.assertNotIn("close/open/high/low", system_prompt)
+            self.assertNotIn("spread_bps as an execution filter", system_prompt)
             command = run.call_args.args[0]
             self.assertEqual(Path(command[3]), result.output_directory / "initial_program.py")
 

@@ -116,7 +116,40 @@ class EvolutionRuleStrategyTests(unittest.TestCase):
         strategy.on_data(_state(0.0, ts=5))
         strategy.on_data(_state(0.0, ts=6))
         self.assertEqual(strategy.cooldown_bars, 0)
+        self.assertEqual(strategy.entries, [])
+        strategy.on_data(_state(0.0, ts=7))
+        strategy.on_data(_state(0.0, ts=8))
         self.assertEqual(strategy.entries, [100.0])
+
+    def test_cooldown_one_skips_exactly_one_subsequent_state(self):
+        strategy = _harness()
+        strategy._rule_spec["cooldown_bars"] = 1
+        strategy.portfolio.flat = False
+        strategy.hold_bars = 2
+        strategy._rule_spec["exit"]["confirmations"] = 1
+        strategy.on_data(_state(-1.0, flow=-1.0))
+        self.assertEqual(strategy.exits, 1)
+        self.assertEqual(strategy.cooldown_bars, 1)
+        strategy.on_data(_state(0.0, ts=4))
+        self.assertEqual(strategy.cooldown_bars, 0)
+        self.assertEqual(strategy.entries, [])
+        strategy.on_data(_state(0.0, ts=5))
+        self.assertEqual(strategy.entries, [])
+        strategy.on_data(_state(0.0, ts=6))
+        self.assertEqual(strategy.entries, [100.0])
+
+    def test_cooldown_resets_entry_confirmation_on_every_skipped_state(self):
+        strategy = _harness()
+        strategy._rule_spec["cooldown_bars"] = 1
+        strategy.cooldown_bars = 1
+        strategy.entry_confirmations = 1
+        strategy.on_data(_state(0.0))
+        self.assertEqual(strategy.entry_confirmations, 0)
+        self.assertEqual(strategy.cooldown_bars, 0)
+        strategy.on_data(_state(0.0, ts=2))
+        self.assertEqual(strategy.entry_confirmations, 1)
+        strategy.on_data(_state(-1.0, ts=3))
+        self.assertEqual(strategy.entry_confirmations, 0)
 
     def test_failed_confirmation_resets_counter(self):
         strategy = _harness()
