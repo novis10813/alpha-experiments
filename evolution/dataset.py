@@ -8,6 +8,8 @@ import shutil
 from decimal import Decimal
 from dataclasses import asdict
 from dataclasses import dataclass
+from datetime import UTC
+from datetime import datetime
 from datetime import timedelta
 from pathlib import Path
 from time import perf_counter
@@ -402,6 +404,23 @@ def build_executable_discovery_from_fast(
     return manifest
 
 
+def _datetime_to_ns(value: datetime) -> int:
+    utc_value = value.astimezone(UTC)
+    epoch = datetime(1970, 1, 1, tzinfo=UTC)
+    delta = utc_value - epoch
+    return (
+        (delta.days * 86_400 + delta.seconds) * 1_000_000_000
+        + delta.microseconds * 1_000
+    )
+
+
+def _items_in_half_open_interval(items: Iterable[object], start_ns: int, end_ns: int) -> list[object]:
+    return [
+        item for item in items
+        if start_ns <= int(getattr(item, "ts_event")) < end_ns
+    ]
+
+
 def build_window_from_catalog(instrument_id: str, window: Window, output_root: Path) -> DatasetManifest:
     """Read closed UTC days and write only to a local split-specific dataset."""
     catalog = make_catalog()
@@ -427,12 +446,27 @@ def build_window_from_catalog(instrument_id: str, window: Window, output_root: P
         start = day.isoformat().replace("+00:00", "Z")
         end = day_end.isoformat().replace("+00:00", "Z")
         stage_started = perf_counter()
-        trades = catalog.trade_ticks(instrument_ids=[InstrumentId.from_str(instrument_id)], start=start, end=end)
+        day_start_ns = _datetime_to_ns(day)
+        day_end_ns = _datetime_to_ns(day_end)
+        trades = _items_in_half_open_interval(
+            catalog.trade_ticks(
+                instrument_ids=[InstrumentId.from_str(instrument_id)], start=start, end=end,
+            ),
+            day_start_ns,
+            day_end_ns,
+        )
         trade_fetch_seconds = perf_counter() - stage_started
         stage_started = perf_counter()
-        depths = catalog.query(OrderBookDepth10, identifiers=[instrument_id], start=start, end=end)
+        depths = _items_in_half_open_interval(
+            catalog.query(OrderBookDepth10, identifiers=[instrument_id], start=start, end=end),
+            day_start_ns,
+            day_end_ns,
+        )
         depth_fetch_seconds = perf_counter() - stage_started
         stage_started = perf_counter()
+        # A final source minute in this day legitimately emits a state at
+        # day_end: the state timestamp is the completed bucket end, while its
+        # source events are still owned by this day.
         day_states, previous_price, previous_sign = _build_market_states(
             trades,
             depths,
@@ -442,8 +476,16 @@ def build_window_from_catalog(instrument_id: str, window: Window, output_root: P
         )
         aggregate_seconds = perf_counter() - stage_started
         stage_started = perf_counter()
-        source_quote_rows = depths_to_quote_rows(depths, resample_seconds=1)
-        day_quotes = resample_quote_rows(source_quote_rows, window.quote_interval_seconds)
+        source_quote_rows = _items_in_half_open_interval(
+            depths_to_quote_rows(depths, resample_seconds=1),
+            day_start_ns,
+            day_end_ns,
+        )
+        day_quotes = _items_in_half_open_interval(
+            resample_quote_rows(source_quote_rows, window.quote_interval_seconds),
+            day_start_ns,
+            day_end_ns,
+        )
         quote_build_seconds = perf_counter() - stage_started
         stage_started = perf_counter()
         _write_catalog_chunk(local_catalog, day_states, day_quotes, instrument_id)

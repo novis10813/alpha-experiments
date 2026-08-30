@@ -229,6 +229,97 @@ class EvolutionDatasetTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "unsupported dataset schema version"):
                 verify_manifest(root / "manifest.json", "BTCUSDT.BINANCE", "discovery_1")
 
+    def test_build_window_owns_boundary_quotes_and_completed_states_by_day(self):
+        from evolution.dataset import _datetime_to_ns
+        from evolution.dataset import build_window_from_catalog
+        from evolution.spec import Window
+        from evolution.spec import utc
+
+        day_ns = 86_400_000_000_000
+        minute_ns = 60_000_000_000
+        instrument_id = "BTCUSDT.BINANCE"
+
+        class BoundaryCatalog:
+            def _window_events(self, start: str, end: str) -> list[int]:
+                start_ns = _datetime_to_ns(utc(start))
+                end_ns = _datetime_to_ns(utc(end))
+                return [start_ns, start_ns + 30_000_000_000, end_ns - 30_000_000_000, end_ns]
+
+            def trade_ticks(self, **kwargs):
+                return [
+                    FakeTrade(instrument_id, ts, Decimal("100"), Decimal("1"))
+                    for ts in self._window_events(kwargs["start"], kwargs["end"])
+                ]
+
+            def query(self, *args, **kwargs):
+                return [
+                    self_depth(ts)
+                    for ts in self._window_events(kwargs["start"], kwargs["end"])
+                ]
+
+        def self_depth(ts: int) -> FakeDepth:
+            return FakeDepth(
+                instrument_id, ts,
+                [FakeLevel(Decimal("99.90"), Decimal("3"))],
+                [FakeLevel(Decimal("100.10"), Decimal("1"))],
+            )
+
+        window = Window(
+            "discovery_boundary",
+            utc("1970-01-01T00:00:00Z"),
+            utc("1970-01-03T00:00:00Z"),
+            3_600,
+            0,
+        )
+        local_chunks: list[tuple[list[object], list[object]]] = []
+        source_chunks: list[list[object]] = []
+
+        def capture_chunk(catalog, states, quotes, instrument):
+            if states:
+                local_chunks.append((states, quotes))
+            else:
+                source_chunks.append(quotes)
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with (
+                patch("evolution.dataset.make_catalog", return_value=BoundaryCatalog()),
+                patch("evolution.dataset.ParquetDataCatalog", side_effect=[object(), object()]),
+                patch("evolution.dataset._write_catalog_chunk", side_effect=capture_chunk),
+            ):
+                build_window_from_catalog(instrument_id, window, root)
+
+        self.assertEqual(len(local_chunks), 2)
+        self.assertEqual(len(source_chunks), 2)
+        first_states, first_quotes = local_chunks[0]
+        second_states, second_quotes = local_chunks[1]
+        self.assertEqual([state.ts_event for state in first_states], [minute_ns, day_ns])
+        self.assertEqual([state.ts_event for state in second_states], [day_ns + minute_ns, 2 * day_ns])
+        hour_ns = 3_600_000_000_000
+        first_quote_times = [quote.ts_event for quote in first_quotes]
+        second_quote_times = [quote.ts_event for quote in second_quotes]
+        self.assertEqual(first_quote_times, list(range(hour_ns, day_ns, hour_ns)))
+        self.assertEqual(second_quote_times, list(range(day_ns + hour_ns, 2 * day_ns, hour_ns)))
+
+        for day_index, rows in enumerate(source_chunks):
+            day_start = day_index * day_ns
+            day_end = day_start + day_ns
+            self.assertTrue(all(day_start <= row.ts_event < day_end for row in rows))
+            self.assertNotIn(day_end, [row.ts_event for row in rows])
+        first_source_times = [row.ts_event for row in source_chunks[0]]
+        second_source_times = [row.ts_event for row in source_chunks[1]]
+        self.assertIn(2_000_000_000, first_source_times)
+        self.assertIn(day_ns - 29_000_000_000, first_source_times)
+        self.assertIn(day_ns + 2_000_000_000, second_source_times)
+        self.assertNotIn(day_ns, first_source_times)
+        self.assertNotIn(day_ns, second_source_times)
+        self.assertEqual(set(first_source_times).intersection(second_source_times), set())
+        quote_times = [quote.ts_event for _, quotes in local_chunks for quote in quotes]
+        self.assertEqual(sorted(quote_times), first_quote_times + second_quote_times)
+        self.assertEqual(len(quote_times), len(set(quote_times)))
+        self.assertIn(12 * hour_ns, first_quote_times)
+        self.assertIn(day_ns + 12 * hour_ns, second_quote_times)
+
     def test_build_window_writes_per_stage_metric(self):
         from evolution.dataset import build_window_from_catalog
         from evolution.spec import Window
