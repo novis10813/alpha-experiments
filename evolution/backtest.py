@@ -246,7 +246,7 @@ def _daily_return_series(
     day_ns = 86_400_000_000_000
     day_ends: dict[int, EvolutionMarketState] = {}
     for state in states:
-        day_ends[state.ts_event // day_ns] = state
+        day_ends[(state.ts_event - 1) // day_ns] = state
 
     fill_rows = [] if fills is None else fills.to_dict(orient="records")
     fill_rows.sort(key=lambda row: _timestamp_ns(row["ts_last"]))

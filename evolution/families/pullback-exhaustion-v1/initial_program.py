@@ -77,6 +77,7 @@ class EvolvedStrategy(Strategy):
             self.exit_confirmations = 0
             self.entry_confirmations = self.entry_confirmations + 1 if entry_state else 0
             if self.cooldown_bars == 0 and self.entry_confirmations >= 2:
+                self.pullback_bars = 0
                 self.enter_long(state.close)
                 self.entry_confirmations = 0
             return

@@ -23,6 +23,36 @@ class EvolutionBacktestTests(unittest.TestCase):
         self.assertAlmostEqual(result.metrics.daily_returns[0], result.metrics.net_return)
         self.assertFalse(result.metrics.rejected)
 
+    def test_daily_returns_align_bucket_end_midnights_without_an_extra_day(self):
+        from evolution.backtest import _daily_return_series
+        from evolution.market_state import EvolutionMarketState
+
+        day_ns = 86_400_000_000_000
+        minute_ns = 60_000_000_000
+        states = [
+            _state(day_ns - minute_ns, 100),
+            _state(day_ns, 101),
+            _state(day_ns + minute_ns, 102),
+            _state(2 * day_ns, 103),
+        ]
+
+        class Fills:
+            def to_dict(self, orient):
+                self.orient = orient
+                return [{
+                    "ts_last": day_ns,
+                    "filled_qty": "1",
+                    "avg_px": 100.0,
+                    "side": "BUY",
+                    "commissions": [],
+                }]
+
+        net, gross = _daily_return_series(states, Fills(), 0)
+        self.assertEqual(len(net), 2)
+        self.assertEqual(len(gross), 2)
+        self.assertAlmostEqual(net[0], 1 / 100_000)
+        self.assertAlmostEqual(net[1], 2 / 100_001)
+
     def test_one_second_quote_at_delay_boundary_changes_fill_price(self):
         from data.orderbook_quotes import QuoteRow
         from evolution.backtest import run_candidate
@@ -63,6 +93,17 @@ class EvolutionBacktestTests(unittest.TestCase):
         delayed = _with_init_delay(state, 1)
         self.assertEqual(delayed.ts_event, ts_event)
         self.assertEqual(delayed.ts_init, ts_event + 1_000_000_002)
+
+
+
+def _state(ts_event: int, price: float):
+    from evolution.market_state import EvolutionMarketState
+
+    return EvolutionMarketState(
+        "BTCUSDT.BINANCE", price, price, price, price, 1, 1, 1, 0,
+        1, 0, 1, 1, 0, 0, 0, 0, price, price + 0.2, 20,
+        ts_event, ts_event + 2,
+    )
 
 
 if __name__ == "__main__":

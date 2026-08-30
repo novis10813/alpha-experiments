@@ -62,7 +62,7 @@ def promote_top_candidates(
     paths: dict[str, Path] = {}
     for entry in index[:10]:
         discovery = _aggregate_from_dict(entry["metrics"])
-        path = Path(entry["program_path"])
+        path = _candidate_path(run_dir, entry)
         first = run_candidate(path, instrument_id, validation_states, 1, validation_quotes, validation_bars).metrics
         second = run_candidate(path, instrument_id, validation_states, 1, validation_quotes, validation_bars).metrics
         if first != second:
@@ -136,6 +136,13 @@ def _load_split(dataset_root: Path, split: str, instrument_id: str):
     bars = catalog.bars(instrument_ids=[instrument_id])
     quotes = [_quote_row(tick) for tick in ticks]
     return states, quotes, bars
+
+
+def _candidate_path(run_directory: Path, entry: dict[str, object]) -> Path:
+    path = Path(str(entry["program_path"]))
+    if not path.is_file():
+        path = run_directory / "top_candidates" / path.name
+    return path
 
 
 def _aggregate_from_dict(metrics: dict[str, float]) -> AggregateMetrics:

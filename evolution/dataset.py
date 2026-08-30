@@ -122,21 +122,21 @@ def _build_market_states(
 
     history = feature_history if feature_history is not None else []
     completed = [*history, *states]
+    close_returns = [
+        _return(completed[index].close, completed[index - 1].close)
+        for index in range(1, len(completed))
+    ]
     for index, state in enumerate(states):
         position = len(history) + index
         prior = completed[:position]
         close_location = _close_location(state.high, state.low, state.close)
-        close_returns = [
-            _return(item.close, completed[item_index - 1].close)
-            for item_index, item in enumerate(completed[:position + 1])
-            if item_index > 0
-        ]
         state.return_5m = _return_at_horizon(completed, position, 5)
         state.return_15m = _return_at_horizon(completed, position, 15)
         state.return_60m = _return_at_horizon(completed, position, 60)
         state.close_location = close_location
         state.realized_volatility_15m = (
-            _population_stddev(close_returns[-15:]) if len(close_returns) >= 15 else 0.0
+            _population_stddev(close_returns[max(0, position - 15):position])
+            if position >= 15 else 0.0
         )
         state.relative_volume_15m = _relative_to_prior(
             state.volume, [item.volume for item in prior[-15:]], 1.0,
@@ -152,7 +152,7 @@ def _build_market_states(
             if position >= 4 else 0.0
         )
         state.obi_change_5m = (
-            _finite_value(state.volume_imbalance - completed[position - 5].volume_imbalance, 0.0)
+            _finite_value(state.depth10_obi_mean - completed[position - 5].depth10_obi_mean, 0.0)
             if position >= 5 else 0.0
         )
         state.relative_spread_15m = _relative_to_prior(

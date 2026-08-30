@@ -20,8 +20,8 @@ Hard contract:
   volume_imbalance, depth10_obi_mean, depth10_obi_last, depth10_obi_min,
   depth10_obi_max, best_bid, best_ask, spread_bps, return_5m, return_15m,
   return_60m, close_location, realized_volatility_15m, relative_volume_15m,
-  relative_trade_density_15m, signed_flow_persistence_5m, obi_change_5m,
-  relative_spread_15m, ts_event, and ts_init. All fields use the current completed
+  relative_trade_density_15m, signed_flow_persistence_5m, obi_change_5m (5-minute
+  change in depth10_obi_mean), relative_spread_15m, ts_event, and ts_init. All fields use the current completed
   one-minute bar and earlier completed bars only; ts_event is the bucket-end timestamp.
 - Enter only through self.enter_long(state.close) and exit only through self.exit_long().
   Never submit orders directly, short, use limit orders, or alter position sizing.

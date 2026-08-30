@@ -5,6 +5,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 
@@ -58,6 +59,61 @@ class EvolutionFamilyTests(unittest.TestCase):
             self.assertEqual(strategy.exit_confirmations, 0)
             self.assertEqual(strategy.hold_bars, 0)
             self.assertEqual(strategy.cooldown_bars, 0)
+
+    def test_pullback_requires_new_pullback_after_exit_and_cooldown(self):
+        from collections import deque
+        from evolution.families import FAMILY_REGISTRY
+
+        source = FAMILY_REGISTRY["pullback-exhaustion-v1"].seed_program
+        module_spec = __import__("importlib.util").util.spec_from_file_location("pullback", source)
+        module = __import__("importlib.util").util.module_from_spec(module_spec)
+        module_spec.loader.exec_module(module)
+        strategy = SimpleNamespace(
+            closes=deque(maxlen=20), pullback_bars=0, entry_confirmations=0,
+            exit_confirmations=0, hold_bars=0, cooldown_bars=0,
+            config=SimpleNamespace(instrument_id="BTCUSDT.BINANCE"),
+        )
+        entries = []
+        exits = []
+        flat = [True]
+
+        class Portfolio:
+            def is_flat(self, _instrument_id):
+                return flat[0]
+
+            def is_net_long(self, _instrument_id):
+                return not flat[0]
+
+        strategy.portfolio = Portfolio()
+        strategy.enter_long = lambda price: (entries.append(price), flat.__setitem__(0, False))
+        strategy.exit_long = lambda: (exits.append(True), flat.__setitem__(0, True))
+
+        def state(close, imbalance):
+            return SimpleNamespace(
+                close=close, trade_imbalance=imbalance, depth10_obi_last=0.0,
+            )
+
+        on_data = module.EvolvedStrategy.on_data
+        for _ in range(10):
+            on_data(strategy, state(100.0, 1.0))
+        on_data(strategy, state(99.0, -1.0))
+        on_data(strategy, state(100.0, 1.0))
+        on_data(strategy, state(100.0, 1.0))
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(strategy.pullback_bars, 0)
+
+        for _ in range(5):
+            on_data(strategy, state(90.0, 1.0))
+        on_data(strategy, state(90.0, 1.0))
+        self.assertEqual(len(exits), 1)
+        for _ in range(4):
+            on_data(strategy, state(101.0, 1.0))
+        self.assertEqual(len(entries), 1)
+
+        on_data(strategy, state(99.0, -1.0))
+        on_data(strategy, state(101.0, 1.0))
+        on_data(strategy, state(101.0, 1.0))
+        self.assertEqual(len(entries), 2)
 
     @patch("evolution.runner.subprocess.run")
     def test_family_run_copies_seed_and_writes_hash_metadata(self, run):

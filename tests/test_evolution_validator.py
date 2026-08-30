@@ -6,6 +6,18 @@ from unittest.mock import patch
 
 
 class EvolutionValidatorTests(unittest.TestCase):
+    def test_candidate_path_falls_back_to_run_top_candidates(self):
+        from evolution.validator import _candidate_path
+
+        with tempfile.TemporaryDirectory() as directory:
+            run = Path(directory)
+            target = run / "top_candidates"
+            target.mkdir()
+            candidate = target / "01-c1.py"
+            candidate.write_text("# candidate\n")
+            path = _candidate_path(run, {"program_path": "/old/location/01-c1.py"})
+            self.assertEqual(path, candidate)
+
     def test_disqualified_candidate_never_loads_validation(self):
         from evolution.validator import promote_top_candidates
 

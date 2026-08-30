@@ -53,9 +53,10 @@ class EvolutionDatasetTests(unittest.TestCase):
                     Decimal(index + 1) / trade_count,
                 ))
             mid = 100 + index
-            depths.append(self._depth(
-                bucket_start + 30_000_000_000,
-                f"{mid - 0.1:.1f}", f"{mid + 0.1:.1f}",
+            depths.append(FakeDepth(
+                "BTCUSDT.BINANCE", bucket_start + 30_000_000_000,
+                [FakeLevel(Decimal(f"{mid - 0.1:.1f}"), Decimal(index + 2))],
+                [FakeLevel(Decimal(f"{mid + 0.1:.1f}"), Decimal("1"))],
             ))
         return trades, depths
 
@@ -102,7 +103,11 @@ class EvolutionDatasetTests(unittest.TestCase):
             state.signed_flow_persistence_5m,
             sum(item.volume_imbalance for item in states[-5:]) / 5,
         )
-        self.assertAlmostEqual(state.obi_change_5m, state.volume_imbalance - states[-6].volume_imbalance)
+        self.assertAlmostEqual(
+            state.obi_change_5m,
+            state.depth10_obi_mean - states[-6].depth10_obi_mean,
+        )
+        self.assertNotEqual(state.obi_change_5m, state.volume_imbalance - states[-6].volume_imbalance)
         self.assertAlmostEqual(
             state.relative_spread_15m,
             state.spread_bps / (sum(item.spread_bps for item in states[-16:-1]) / 15),
