@@ -7,6 +7,8 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+from evolution.budget_policy import validate_budget
+from evolution.config import load_base_config
 from evolution.config import write_run_config
 from evolution.families import EvolutionFamily
 from evolution.families import composed_prompt_sha256
@@ -54,12 +56,17 @@ def run_evolution(
     iterations: int = 30,
     checkpoint: Path | None = None,
     family: EvolutionFamily | str | None = None,
+    random_seed: int | None = None,
+    budget_stage: str | None = None,
+    advancement_record: Path | None = None,
 ) -> EvolutionRunResult:
     if isinstance(family, str):
         family = get_family(family)
     if family is not None:
         validate_family_instrument(family.family_id, instrument_id)
     _load_dotenv()
+    seed = int(load_base_config()["random_seed"]) if random_seed is None else random_seed
+    selected_stage = validate_budget(iterations, budget_stage, advancement_record)
     api_key = os.environ.get("OPENROUTER_API_KEY")
     if not api_key:
         raise RuntimeError("Missing required environment variable: OPENROUTER_API_KEY")
@@ -70,7 +77,16 @@ def run_evolution(
     ]
     if missing:
         raise RuntimeError(f"Discovery dataset is missing: {missing[0]}")
-    config_path, run_dir = write_run_config(output_root, instrument_id, run_id, iterations, family)
+    config_path, run_dir = write_run_config(
+        output_root,
+        instrument_id,
+        run_id,
+        iterations,
+        family=family,
+        random_seed=seed,
+        budget_stage=selected_stage,
+        advancement_record=advancement_record,
+    )
     program_path = Path(__file__).parent / "initial_program.py"
     if family is not None:
         program_path = run_dir / "initial_program.py"
@@ -108,8 +124,10 @@ def run_evolution(
         run_id,
         300,
         latest,
-        family.family_id if family is not None else None,
-    ) if latest else None
+        random_seed=seed,
+        family_id=family.family_id if family is not None else None,
+        advancement_record=advancement_record,
+    ) if latest and advancement_record else None
     return EvolutionRunResult(completed.returncode, run_dir, latest, resume, limited)
 
 
@@ -128,13 +146,17 @@ def resume_command(
     run_id: str,
     iterations: int,
     checkpoint: Path,
+    random_seed: int | None = None,
     family_id: str | None = None,
+    advancement_record: Path | None = None,
 ) -> str:
     command = (
         "uv run python -m evolution resume"
         f" --instrument-id {instrument_id} --dataset-root {dataset_root}"
         f" --output-root {output_root} --run-id {run_id} --iterations {iterations}"
         f" --checkpoint {checkpoint}"
+        + (f" --seed {random_seed}" if random_seed is not None else "")
+        + (f" --advancement-record {advancement_record}" if advancement_record else "")
     )
     return f"{command} --family-id {family_id}" if family_id else command
 
@@ -157,11 +179,23 @@ def _write_family_metadata(
         ),
     }
     path = run_dir / "run_metadata.json"
-    encoded = json.dumps(payload, indent=2, sort_keys=True) + "\n"
-    if path.exists() and path.read_text(encoding="utf-8") != encoded:
-        raise RuntimeError("immutable family run metadata does not match")
-    if not path.exists():
-        path.write_text(encoded, encoding="utf-8")
+    budget_path = run_dir / "run-metadata.json"
+    metadata = json.loads(budget_path.read_text(encoding="utf-8")) if budget_path.exists() else {}
+    existing = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    for key, value in payload.items():
+        if key in existing and existing[key] != value:
+            raise RuntimeError("immutable family run metadata does not match")
+        if key in metadata and metadata[key] != value:
+            raise RuntimeError("immutable family run metadata does not match")
+    metadata.update(payload)
+    encoded = json.dumps(metadata, indent=2, sort_keys=True) + "\n"
+    path.write_text(encoded, encoding="utf-8")
+    budget_path.write_text(encoded, encoding="utf-8")
+    snapshot = run_dir / "config.redacted.json"
+    if snapshot.exists():
+        redacted = json.loads(snapshot.read_text(encoding="utf-8"))
+        redacted["run_metadata"] = metadata
+        snapshot.write_text(json.dumps(redacted, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return path
 
 

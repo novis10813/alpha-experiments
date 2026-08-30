@@ -31,6 +31,24 @@ class CandidateValidationTests(unittest.TestCase):
             self.assertFalse(result.valid)
             self.assertIn(expected, " ".join(result.errors))
 
+    def test_source_signature_ignores_comments_and_formatting_but_not_literals(self):
+        from evolution.candidate import EVOLVE_END, EVOLVE_START
+        from evolution.signatures import source_signature
+
+        prefix, rest = self.reference.split(EVOLVE_START, 1)
+        block, suffix = rest.split(EVOLVE_END, 1)
+        comments = block.replace("#", "# formatting comment\n        #", 1)
+        compact = "\n".join(line.rstrip() for line in comments.splitlines())
+        changed = block.replace("maxlen=240", "maxlen=241", 1)
+        self.assertEqual(
+            source_signature(prefix + EVOLVE_START + block + EVOLVE_END + suffix),
+            source_signature(prefix + EVOLVE_START + compact + EVOLVE_END + suffix),
+        )
+        self.assertNotEqual(
+            source_signature(prefix + EVOLVE_START + block + EVOLVE_END + suffix),
+            source_signature(prefix + EVOLVE_START + changed + EVOLVE_END + suffix),
+        )
+
     def test_skeleton_change_and_direct_order_factory_are_rejected(self):
         from evolution.candidate import validate_candidate
 

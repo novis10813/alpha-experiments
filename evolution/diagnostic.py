@@ -12,6 +12,7 @@ from evolution.metrics import annualized_sharpe
 from evolution.sandbox_worker import load_split
 from evolution.spec import DISCOVERY_FOLDS
 from evolution.spec import STARTING_BALANCE_USDT
+from evolution.signatures import behavior_signature
 
 
 BASELINES = {
@@ -81,6 +82,7 @@ def _candidate_payload(folds: list[BacktestResult]) -> dict[str, object]:
     fold_count = len(folds)
     holding = [value for fold in diagnostics for value in fold.holding_durations_seconds]
     return {
+        "behavior_signature": behavior_signature([fold.behavior_signature for fold in folds]),
         "aggregate": {
             "gross_return": total_gross_pnl / fold_count,
             "fee_drag": total_fee / fold_count,
@@ -104,6 +106,7 @@ def _candidate_payload(folds: list[BacktestResult]) -> dict[str, object]:
                 "fold": window.name,
                 "metrics": asdict(result.metrics),
                 "diagnostics": asdict(result.diagnostics),
+                "behavior_signature": result.behavior_signature,
             }
             for window, result in zip(DISCOVERY_FOLDS, folds, strict=True)
         ],

@@ -17,6 +17,7 @@ from evolution.metrics import FoldMetrics
 from evolution.metrics import annualized_sharpe
 from evolution.metrics import max_drawdown
 from evolution.metrics import profit_factor
+from evolution.signatures import behavior_signature_from_reports
 from evolution.spec import FEE_RATE
 from evolution.spec import STARTING_BALANCE_USDT
 from data.orderbook_quotes import QuoteRow
@@ -45,6 +46,7 @@ class BacktestResult:
     fill_count: int
     position_count: int
     diagnostics: DiagnosticMetrics
+    behavior_signature: str
 
 
 def run_candidate(
@@ -132,7 +134,8 @@ def run_candidate(
             rejected=rejected,
             error="order rejection" if rejected else None,
         )
-        return BacktestResult(metrics, len(fills), len(positions), diagnostics)
+        behavior = behavior_signature_from_reports(positions, fills, orders_report)
+        return BacktestResult(metrics, len(fills), len(positions), diagnostics, behavior)
     finally:
         engine.dispose()
 

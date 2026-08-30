@@ -28,13 +28,28 @@ def write_run_config(
     run_id: str,
     iterations: int,
     family: EvolutionFamily | None = None,
+    random_seed: int | None = None,
+    budget_stage: str | None = None,
+    advancement_record: Path | None = None,
 ) -> tuple[Path, Path]:
-    if iterations <= 0:
-        raise ValueError("iterations must be positive")
+    from evolution.budget_policy import budget_metadata
+    from evolution.budget_policy import validate_budget
+
+    selected_stage = validate_budget(iterations, budget_stage, advancement_record)
     run_dir = run_directory(output_root, instrument_id, run_id)
     run_dir.mkdir(parents=True, exist_ok=True)
     config = load_base_config()
+    seed = config["random_seed"] if random_seed is None else random_seed
     config["max_iterations"] = iterations
+    config["random_seed"] = seed
+    run_metadata = {
+        "schema_version": 1,
+        "instrument_id": instrument_id,
+        "run_id": run_id,
+        **budget_metadata(iterations, seed, selected_stage),
+    }
+    if advancement_record is not None:
+        run_metadata["advancement_record"] = str(advancement_record.resolve())
     template_dir = Path(config["prompt"]["template_dir"])
     if not template_dir.is_absolute():
         template_dir = (Path(__file__).parents[1] / template_dir).resolve()
@@ -52,8 +67,13 @@ def write_run_config(
     path = run_dir / "openevolve.yaml"
     path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
     redacted = redact(config)
+    redacted["run_metadata"] = run_metadata
     (run_dir / "config.redacted.json").write_text(
         json.dumps(redacted, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    (run_dir / "run-metadata.json").write_text(
+        json.dumps(run_metadata, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
     return path, run_dir

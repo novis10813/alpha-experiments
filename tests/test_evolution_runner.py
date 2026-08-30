@@ -53,11 +53,61 @@ class EvolutionRunnerTests(unittest.TestCase):
         from evolution.config import write_run_config
 
         with tempfile.TemporaryDirectory() as directory:
-            path, _ = write_run_config(Path(directory), "BTCUSDT.BINANCE", "r1", 30)
+            path, run_dir = write_run_config(
+                Path(directory), "BTCUSDT.BINANCE", "r1", 30, random_seed=17,
+            )
             config = yaml.safe_load(path.read_text())
+            metadata = json.loads((run_dir / "run-metadata.json").read_text())
+            snapshot = json.loads((run_dir / "config.redacted.json").read_text())
         template_dir = Path(config["prompt"]["template_dir"])
         self.assertTrue(template_dir.is_absolute())
         self.assertTrue((template_dir / "system_message.txt").is_file())
+        self.assertEqual(metadata["random_seed"], 17)
+        self.assertEqual(metadata["budget_stage"], "search_smoke")
+        self.assertEqual(snapshot["run_metadata"], metadata)
+
+    def test_budget_policy_rejects_unsupported_and_unadvanced_budgets(self):
+        from evolution.budget_policy import validate_budget
+
+        for iterations in (1, 20, 101, 299, 301):
+            with self.subTest(iterations=iterations), self.assertRaises(ValueError):
+                validate_budget(iterations)
+        with self.assertRaisesRegex(ValueError, "advancement record"):
+            validate_budget(300)
+
+    def test_budget_policy_accepts_viability_without_discovery_evidence(self):
+        from evolution.budget_policy import validate_budget
+
+        self.assertEqual(validate_budget(10).value, "lifecycle")
+        self.assertEqual(validate_budget(30).value, "search_smoke")
+        self.assertEqual(validate_budget(50).value, "viability")
+        self.assertEqual(validate_budget(100).value, "viability")
+
+    def test_extended_budget_requires_and_accepts_registered_record(self):
+        from evolution.budget_policy import BUDGET_POLICY_NAME
+        from evolution.budget_policy import validate_budget
+
+        with tempfile.TemporaryDirectory() as directory:
+            record = Path(directory) / "advance.json"
+            record.write_text(json.dumps({
+                "policy": BUDGET_POLICY_NAME,
+                "target_stage": "extended",
+                "approved": True,
+            }))
+            self.assertEqual(validate_budget(300, advancement_record=record).value, "extended")
+
+    def test_cli_accepts_explicit_seed_and_budget_stage(self):
+        from evolution.__main__ import parse_args
+        from unittest.mock import patch
+
+        with patch("sys.argv", [
+            "evolution", "evolve", "--instrument-id", "BTCUSDT.BINANCE",
+            "--run-id", "r1", "--iterations", "50", "--seed", "23",
+            "--budget-stage", "viability",
+        ]):
+            args = parse_args()
+        self.assertEqual(args.random_seed, 23)
+        self.assertEqual(args.budget_stage, "viability")
 
     @patch("evolution.runner.subprocess.run")
     def test_429_preserves_checkpoint_and_redacts_key(self, run):

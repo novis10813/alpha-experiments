@@ -72,6 +72,43 @@ class EvolutionRerankTests(unittest.TestCase):
         self.assertTrue(all(item["deterministic"] for item in payload["candidates"]))
         self.assertEqual(written, json.dumps(payload, indent=2, sort_keys=True) + "\n")
 
+    def test_similarity_signatures_and_summary_are_recorded_without_extra_evaluation(self):
+        from evolution.rerank import rerank_discovery_candidates
+
+        payloads = iter([
+            _payload(0.02, 2.0), _payload(0.01, 1.0), _payload(0.01, 1.0),
+            _payload(0.01, 1.0), _payload(0.03, 3.0), _payload(0.03, 3.0),
+        ])
+        with patch("evolution.rerank._load_discovery_data", return_value=[]), patch(
+            "evolution.rerank._evaluate", side_effect=lambda *args: next(payloads),
+        ) as evaluate:
+            with tempfile.TemporaryDirectory() as directory:
+                run = Path(directory)
+                target = run / "top_candidates"
+                target.mkdir()
+                for rank, candidate_id in enumerate(("a", "b"), start=1):
+                    path = target / f"0{rank}-{candidate_id}.py"
+                    path.write_text("# candidate\n")
+                    if candidate_id == "b":
+                        path.write_text("# candidate\n# changed\n")
+                    if rank == 1:
+                        first = path
+                    (target / "index.json").write_text(json.dumps([
+                        {"rank": 1, "candidate_id": "a", "program_path": str(first), "metrics": {}},
+                        {"rank": 2, "candidate_id": "b", "program_path": str(path), "metrics": {}},
+                    ]))
+                output = run / "rerank.json"
+                result = rerank_discovery_candidates(
+                    "BTCUSDT.BINANCE", Path("fast"), Path("executable"), run, output,
+                    top_n=2, include_baselines=False,
+                )
+        self.assertEqual(evaluate.call_count, 6)
+        summary = result["discovery_summary"]
+        self.assertEqual(summary["evaluated_count"], 2)
+        self.assertEqual(summary["unique_source_count"], 1)
+        self.assertEqual(summary["unique_behavior_count"], 1)
+        self.assertEqual(summary["duplicate_groups"], [["a", "b"]])
+
     def test_rank_stability_uses_candidate_ranks(self):
         from evolution.rerank import _rank_stability
 

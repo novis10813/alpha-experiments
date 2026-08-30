@@ -44,6 +44,9 @@ def parse_args() -> argparse.Namespace:
         run.add_argument("--run-id", required=True)
         run.add_argument("--family-id", choices=tuple(FAMILY_REGISTRY))
         run.add_argument("--iterations", type=int, default=30 if name == "evolve" else 300)
+        run.add_argument("--seed", "--random-seed", dest="random_seed", type=int, default=None)
+        run.add_argument("--budget-stage", choices=("lifecycle", "search_smoke", "viability", "extended"))
+        run.add_argument("--advancement-record", type=Path)
         if name == "resume":
             run.add_argument("--checkpoint", type=Path, required=True)
     diagnose = subparsers.add_parser("diagnose", help="Run fixed baselines on discovery folds only.")
@@ -158,7 +161,10 @@ def main() -> None:
         args.run_id,
         args.iterations,
         getattr(args, "checkpoint", None),
-        get_family(args.family_id) if getattr(args, "family_id", None) else None,
+        family=get_family(args.family_id) if getattr(args, "family_id", None) else None,
+        random_seed=getattr(args, "random_seed", None),
+        budget_stage=getattr(args, "budget_stage", None),
+        advancement_record=getattr(args, "advancement_record", None),
     )
     print(f"OpenEvolve exit code: {result.returncode}")
     print(f"Output: {result.output_directory}")

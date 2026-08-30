@@ -10,6 +10,8 @@ from evolution.diagnostic import _candidate_payload
 from evolution.diagnostic import discovery_split
 from evolution.sandbox_worker import load_split
 from evolution.spec import DISCOVERY_FOLDS
+from evolution.signatures import behavior_signature_from_payload
+from evolution.signatures import source_signature
 
 
 def rerank_discovery_candidates(
@@ -43,6 +45,8 @@ def rerank_discovery_candidates(
             raise RuntimeError(f"non-deterministic executable rerun: {candidate['candidate_id']}")
         results.append({
             **candidate,
+            "source_signature": source_signature(program_path.read_text(encoding="utf-8")),
+            "behavior_signature": behavior_signature_from_payload(executable),
             "fast": fast,
             "executable": executable,
             "deterministic": deterministic,
@@ -68,6 +72,7 @@ def rerank_discovery_candidates(
         "fast_profile": {"quote_interval_seconds": 60, "execution_delay_seconds": 0},
         "executable_profile": {"quote_interval_seconds": 1, "execution_delay_seconds": 1},
         "rank_stability": _rank_stability(candidate_results),
+        "discovery_summary": _similarity_summary(candidate_results),
         "candidates": ranked,
     }
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -117,6 +122,24 @@ def _load_candidates(run_directory: Path, top_n: int) -> list[dict[str, object]]
             "fast_metrics": item.get("metrics"),
         })
     return candidates
+
+
+def _similarity_summary(candidates: list[dict[str, object]]) -> dict[str, object]:
+    groups: dict[str, list[str]] = {}
+    behavior_groups: dict[str, list[str]] = {}
+    for item in candidates:
+        candidate_id = str(item["candidate_id"])
+        groups.setdefault(str(item["source_signature"]), []).append(candidate_id)
+        behavior_groups.setdefault(str(item["behavior_signature"]), []).append(candidate_id)
+    duplicate_groups = [sorted(group) for group in groups.values() if len(group) > 1]
+    behavior_duplicate_groups = [sorted(group) for group in behavior_groups.values() if len(group) > 1]
+    return {
+        "evaluated_count": len(candidates),
+        "unique_source_count": len(groups),
+        "unique_behavior_count": len(behavior_groups),
+        "duplicate_groups": duplicate_groups,
+        "behavior_duplicate_groups": behavior_duplicate_groups,
+    }
 
 
 def _rank_stability(candidates: list[dict[str, object]]) -> dict[str, object]:
