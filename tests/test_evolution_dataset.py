@@ -1,8 +1,10 @@
+import json
 import tempfile
 import unittest
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
+from unittest.mock import patch
 
 
 @dataclass(frozen=True)
@@ -109,6 +111,42 @@ class EvolutionDatasetTests(unittest.TestCase):
                 verify_manifest(
                     root / "manifest.json", "BTCUSDT.BINANCE", "discovery_1", "executable",
                 )
+
+    def test_build_window_writes_per_stage_metric(self):
+        from evolution.dataset import build_window_from_catalog
+        from evolution.spec import Window
+        from evolution.spec import utc
+
+        class FakeCatalog:
+            def trade_ticks(self, **kwargs):
+                return [FakeTrade("BTCUSDT.BINANCE", 1_000_000_000, Decimal("100"), Decimal("1"))]
+
+            def query(self, *args, **kwargs):
+                return [self_depth]
+
+        self_depth = self._depth(1_000_000_000)
+        window = Window("discovery_test", utc("1970-01-01T00:00:00Z"), utc("1970-01-01T00:01:00Z"), 60, 0)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with (
+                patch("evolution.dataset.make_catalog", return_value=FakeCatalog()),
+                patch("evolution.dataset.ParquetDataCatalog"),
+                patch("evolution.dataset._write_catalog_chunk"),
+            ):
+                build_window_from_catalog("BTCUSDT.BINANCE", window, root)
+            metrics = (root / "_metrics" / "dataset-build.jsonl").read_text(encoding="utf-8").splitlines()
+
+        self.assertEqual(len(metrics), 1)
+        metric = json.loads(metrics[0])
+        self.assertEqual(metric["event"], "dataset_day_built")
+        self.assertEqual(metric["instrument_id"], "BTCUSDT.BINANCE")
+        self.assertEqual(metric["trade_count"], 1)
+        self.assertEqual(metric["depth_count"], 1)
+        for field in (
+            "trade_fetch_seconds", "depth_fetch_seconds", "aggregate_seconds",
+            "quote_build_seconds", "local_write_seconds", "max_rss_mib",
+        ):
+            self.assertGreaterEqual(metric[field], 0)
 
     def test_executable_builder_rejects_non_discovery_window(self):
         from evolution.dataset import build_executable_discovery_from_fast

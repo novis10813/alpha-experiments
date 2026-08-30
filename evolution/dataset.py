@@ -3,12 +3,14 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import resource
 import shutil
 from decimal import Decimal
 from dataclasses import asdict
 from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
+from time import perf_counter
 from typing import Iterable
 
 from alphas.orderbook_imbalance import orderbook_imbalance_value
@@ -239,6 +241,13 @@ def manifest_for(
     )
 
 
+def _append_build_metric(output_root: Path, metric: dict[str, object]) -> None:
+    path = output_root / "_metrics" / "dataset-build.jsonl"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as stream:
+        stream.write(json.dumps(metric, sort_keys=True) + "\n")
+
+
 def build_executable_discovery_from_fast(
     instrument_id: str,
     window: Window,
@@ -308,16 +317,46 @@ def build_window_from_catalog(instrument_id: str, window: Window, output_root: P
         day_end = min(day + timedelta(days=1), window.end)
         start = day.isoformat().replace("+00:00", "Z")
         end = day_end.isoformat().replace("+00:00", "Z")
+        stage_started = perf_counter()
         trades = catalog.trade_ticks(instrument_ids=[InstrumentId.from_str(instrument_id)], start=start, end=end)
+        trade_fetch_seconds = perf_counter() - stage_started
+        stage_started = perf_counter()
         depths = catalog.query(OrderBookDepth10, identifiers=[instrument_id], start=start, end=end)
+        depth_fetch_seconds = perf_counter() - stage_started
+        stage_started = perf_counter()
         day_states, previous_price, previous_sign = _build_market_states(
             trades,
             depths,
             previous_price,
             previous_sign,
         )
+        aggregate_seconds = perf_counter() - stage_started
+        stage_started = perf_counter()
         day_quotes = depths_to_quote_rows(depths, resample_seconds=window.quote_interval_seconds)
+        quote_build_seconds = perf_counter() - stage_started
+        stage_started = perf_counter()
         _write_catalog_chunk(local_catalog, day_states, day_quotes, instrument_id)
+        local_write_seconds = perf_counter() - stage_started
+        metric = {
+            "event": "dataset_day_built",
+            "instrument_id": instrument_id,
+            "split": window.name,
+            "date": day.date().isoformat(),
+            "start": start,
+            "end": end,
+            "trade_count": len(trades),
+            "depth_count": len(depths),
+            "state_count": len(day_states),
+            "quote_count": len(day_quotes),
+            "trade_fetch_seconds": trade_fetch_seconds,
+            "depth_fetch_seconds": depth_fetch_seconds,
+            "aggregate_seconds": aggregate_seconds,
+            "quote_build_seconds": quote_build_seconds,
+            "local_write_seconds": local_write_seconds,
+            "max_rss_mib": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024,
+        }
+        _append_build_metric(output_root, metric)
+        print(json.dumps(metric, sort_keys=True), flush=True)
         if day_states:
             first_ts_event = first_ts_event or day_states[0].ts_event
             last_ts_event = day_states[-1].ts_event
