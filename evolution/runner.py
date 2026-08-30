@@ -16,6 +16,7 @@ from evolution.families import get_family
 from evolution.families import sha256_file
 from evolution.families import validate_family_instrument
 from evolution.metrics import REJECTED_SCORE
+from evolution.lifecycle_summary import summarize_lifecycle
 from data.nautilus_catalog import _load_dotenv
 
 
@@ -116,6 +117,7 @@ def run_evolution(
     latest = latest_checkpoint(run_dir)
     if latest is not None:
         export_top_candidates(latest, run_dir)
+    summarize_lifecycle(run_dir)
     limited = completed.returncode != 0 and any(
         marker in output.lower() for marker in ("429", "rate limit", "quota")
     )

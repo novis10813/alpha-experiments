@@ -8,6 +8,7 @@ from evolution.dataset import build_window_from_catalog
 from evolution.diagnostic import run_discovery_diagnostic
 from evolution.eligibility import audit_checkpoint_eligibility
 from evolution.families import FAMILY_REGISTRY
+from evolution.lifecycle_summary import summarize_lifecycle
 from evolution.families import get_family
 from evolution.rerank import rerank_discovery_candidates
 from evolution.runner import run_evolution
@@ -74,6 +75,8 @@ def parse_args() -> argparse.Namespace:
     sensitivity.add_argument("--output-root", type=Path, default=Path("outputs/evolution"))
     sensitivity.add_argument("--run-id", required=True)
     sensitivity.add_argument("--skip-baselines", action="store_true")
+    summarize = subparsers.add_parser("lifecycle-summary", help="Summarize a discovery lifecycle run without evaluation.")
+    summarize.add_argument("--run-directory", type=Path, required=True)
     audit = subparsers.add_parser("audit-eligibility", help="Audit checkpoint trade-count thresholds.")
     audit.add_argument("--checkpoint", type=Path, required=True)
     audit.add_argument("--output", type=Path, required=True)
@@ -94,6 +97,10 @@ def main() -> None:
         for window in ALL_WINDOWS:
             manifest = build_window_from_catalog(args.instrument_id, window, args.dataset_root)
             print(f"{window.name}: {manifest.row_count} states")
+        return
+    if args.command == "lifecycle-summary":
+        output = summarize_lifecycle(args.run_directory)
+        print(__import__("json").dumps(output, indent=2, sort_keys=True))
         return
     if args.command == "audit-eligibility":
         payload = audit_checkpoint_eligibility(args.checkpoint)

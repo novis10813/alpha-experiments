@@ -24,16 +24,44 @@ rule component only: one feature, operator, threshold, confirmation count,
 exit mode, minimum hold, or cooldown. Do not add code or unrestricted LLM
 feedback.
 """
-_FAMILY_DIFF_PROMPT = """# Declarative family mutation task
+_FAMILY_DIFF_PROMPT = (
+    """# Current Program Information
+- Current performance metrics: {metrics}
+- Areas identified for improvement: {improvement_areas}
+
+{artifacts}
+
+# Program Evolution History
+{evolution_history}
+
+# Current Program
+```{language}
+{current_program}
+```
+
+# Declarative family mutation task
 
 Edit only the class-level `RULE_SPEC` literal inside the EVOLVE block. Keep the
 exact schema-v2 flat mapping grammar from the family context. Conditions must be
 literal mappings with exactly `feature`, `op`, and `value`; do not add nested
-logic, methods, imports, or executable expressions. Make one oralizable rule
-component mutation per proposal and preserve the family_id. Return only a
-SEARCH/REPLACE diff whose replacement remains a RULE_SPEC literal. Do not use
-unrestricted LLM feedback.
+logic, methods, imports, or executable expressions. Make exactly one oralizable
+rule-component mutation and preserve the family_id.
+
+Your response must start with `<<<<<<< SEARCH` as its first characters. Return
+exactly one SEARCH/REPLACE block, with no prose or code fence before the first
+marker, between the markers, or after the closing marker. Do not include an
+explanation. Copy SEARCH text exactly from the current program and keep both
+SEARCH and REPLACE wholly inside the EVOLVE block. The replacement must remain
+one RULE_SPEC literal.
+
 """
+    + "<<<<<<< "
+    + "SEARCH\n"
+    + "# exact existing text from inside the EVOLVE block\n"
+    + "=======\n"
+    + "# replacement text, also entirely inside the EVOLVE block\n"
+    + ">>>>>>> REPLACE"
+)
 
 
 def load_base_config() -> dict[str, Any]:
@@ -89,15 +117,16 @@ def write_run_config(
         template_dir = run_dir / "prompts"
         template_dir.mkdir(parents=True, exist_ok=True)
         common_system = (Path(__file__).parent / "prompts" / "system_message.txt").read_text(encoding="utf-8")
-        common_diff = (Path(__file__).parent / "prompts" / "diff_user.txt").read_text(encoding="utf-8")
+        fragments = (Path(__file__).parent / "prompts" / "fragments.json").read_text(encoding="utf-8")
         (template_dir / "system_message.txt").write_text(
             common_system + "\n\n# Family context\n" + _FAMILY_RULE_GRAMMAR + "\n" + family.prompt_context + "\n",
             encoding="utf-8",
         )
         (template_dir / "diff_user.txt").write_text(
-            _FAMILY_DIFF_PROMPT + "\n# Family identifier\n" + family.family_id + "\n\n" + common_diff,
+            _FAMILY_DIFF_PROMPT + "\n# Family identifier\n" + family.family_id,
             encoding="utf-8",
         )
+        (template_dir / "fragments.json").write_text(fragments, encoding="utf-8")
     config["prompt"]["template_dir"] = str(template_dir.resolve())
     config["log_dir"] = str((run_dir / "logs").resolve())
     config["database"]["db_path"] = str((run_dir / "program_database").resolve())
