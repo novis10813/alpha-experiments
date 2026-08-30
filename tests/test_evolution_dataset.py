@@ -148,6 +148,37 @@ class EvolutionDatasetTests(unittest.TestCase):
         ):
             self.assertGreaterEqual(metric[field], 0)
 
+    def test_executable_builder_uses_local_source_quotes(self):
+        from data.orderbook_quotes import QuoteRow
+        from evolution.dataset import build_executable_discovery_from_fast
+        from evolution.dataset import manifest_for
+        from evolution.dataset import write_local_catalog
+        from evolution.dataset import write_manifest
+        from evolution.spec import Window
+        from evolution.spec import utc
+        from nautilus_trader.persistence.catalog.parquet import ParquetDataCatalog
+
+        window = Window("discovery_1", utc("1970-01-01T00:00:00Z"), utc("1970-01-01T00:00:02Z"), 60, 0)
+        quotes = [
+            QuoteRow(1_000_000_000, "BTCUSDT.BINANCE", 99.9, 100.1, 100, 0.2, 20),
+            QuoteRow(2_000_000_000, "BTCUSDT.BINANCE", 100.0, 100.2, 100.1, 0.2, 20),
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "fast" / window.name / "BTCUSDT.BINANCE"
+            files = write_local_catalog([], [quotes[0]], source, "BTCUSDT.BINANCE")
+            write_manifest(manifest_for("BTCUSDT.BINANCE", window, [], files), source / "manifest.json")
+            write_local_catalog([], quotes, source / "source-quotes-1s", "BTCUSDT.BINANCE")
+            with patch("evolution.dataset.make_catalog", side_effect=AssertionError("remote catalog used")):
+                manifest = build_executable_discovery_from_fast(
+                    "BTCUSDT.BINANCE", window, root / "fast", root / "executable",
+                )
+            catalog = ParquetDataCatalog(root / "executable" / window.name / "BTCUSDT.BINANCE")
+            output_quotes = catalog.quote_ticks(instrument_ids=["BTCUSDT.BINANCE"])
+
+        self.assertEqual(manifest.quote_count, 2)
+        self.assertEqual(len(output_quotes), 2)
+
     def test_executable_builder_rejects_non_discovery_window(self):
         from evolution.dataset import build_executable_discovery_from_fast
         from evolution.spec import Window

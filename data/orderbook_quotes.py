@@ -29,12 +29,21 @@ def depths_to_quote_rows(
     depths: Iterable[object],
     resample_seconds: int | None = None,
 ) -> list[QuoteRow]:
-    rows = [_quote_row_for(depth) for depth in depths]
-    if resample_seconds is None:
+    return resample_quote_rows(
+        [_quote_row_for(depth) for depth in depths],
+        resample_seconds,
+    )
+
+
+def resample_quote_rows(
+    rows: list[QuoteRow],
+    interval_seconds: int | None,
+) -> list[QuoteRow]:
+    if interval_seconds is None:
         return rows
-    if resample_seconds <= 0:
+    if interval_seconds <= 0:
         raise ValueError("resample_seconds must be positive")
-    return _resample_quotes(rows, resample_seconds)
+    return _resample_quotes(rows, interval_seconds)
 
 
 def load_orderbook_quotes(

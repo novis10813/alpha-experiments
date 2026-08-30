@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Iterable
 
 from evolution.selection import CandidateResult
+from evolution.spec import ResearchStatus
 
 
 def write_research_report(
@@ -17,7 +18,7 @@ def write_research_report(
     output_directory: Path,
 ) -> tuple[Path, Path]:
     output_directory.mkdir(parents=True, exist_ok=True)
-    status = "accepted_alpha" if feasible else _rejected_status(candidate)
+    status = ResearchStatus.ACCEPTED_ALPHA if feasible else _rejected_status(candidate)
     payload = {
         "candidate_id": candidate.candidate_id,
         "status": status,
@@ -53,7 +54,9 @@ def write_alpha_signal(
 def _rejected_status(candidate: CandidateResult) -> str:
     validation = candidate.validation
     holdout = candidate.holdout
-    if validation and holdout and (validation.net_return > 0 or holdout.net_return > 0):
-        return "feature_candidate"
-    return "rejected"
+    if validation is None or holdout is None:
+        return ResearchStatus.INCONCLUSIVE
+    if validation.net_return > 0 and holdout.net_return > 0:
+        return ResearchStatus.RULE_CANDIDATE
+    return ResearchStatus.REJECTED
 

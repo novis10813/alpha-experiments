@@ -17,6 +17,7 @@ from evolution.metrics import FoldMetrics
 from evolution.metrics import annualized_sharpe
 from evolution.metrics import max_drawdown
 from evolution.metrics import profit_factor
+from evolution.spec import FEE_RATE
 from evolution.spec import STARTING_BALANCE_USDT
 from data.orderbook_quotes import QuoteRow
 from nautilus_trader.backtest.engine import BacktestEngine
@@ -53,6 +54,7 @@ def run_candidate(
     execution_delay_seconds: int = 0,
     quotes: list[QuoteRow] | None = None,
     bars: list[Bar] | None = None,
+    fee_rate: float = FEE_RATE,
 ) -> BacktestResult:
     if not states:
         raise ValueError("states cannot be empty")
@@ -71,7 +73,7 @@ def run_candidate(
             book_type=BookType.L1_MBP,
             use_random_ids=False,
         )
-        instrument = build_instrument(instrument_id)
+        instrument = build_instrument(instrument_id, fee_rate)
         engine.add_instrument(instrument)
         config = module.EvolutionStrategyConfig(
             instrument_id=parsed_id,

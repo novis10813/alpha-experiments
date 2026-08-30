@@ -6,12 +6,17 @@ from pathlib import Path
 
 from data.orderbook_quotes import QuoteRow
 from evolution.backtest import run_candidate
+from evolution.ledger import acquire_holdout_lock
+from evolution.ledger import complete_holdout
+from evolution.ledger import record_validation
+from evolution.ledger import register_family
 from evolution.market_state import EvolutionMarketState
 from evolution.metrics import AggregateMetrics
 from evolution.selection import CandidateResult
 from evolution.selection import is_feasible
 from evolution.selection import single_fitness
 from evolution.selection import validation_champion
+from evolution.qualification import qualify_discovery
 from evolution.report import write_research_report
 from evolution.dataset import verify_manifest
 from nautilus_trader.model.identifiers import InstrumentId
@@ -26,9 +31,33 @@ def promote_top_candidates(
     instrument_id: str,
     dataset_root: Path,
     run_dir: Path,
+    family_id: str,
+    hypothesis: str,
+    governance_root: Path,
+    run_id: str,
 ) -> dict[str, object]:
+    register_family(governance_root, family_id, hypothesis, instrument_id, run_id)
+    rerank = json.loads((run_dir / "rerank.json").read_text(encoding="utf-8"))
+    sensitivity = json.loads((run_dir / "sensitivity.json").read_text(encoding="utf-8"))
+    qualification = qualify_discovery(rerank, sensitivity, family_id)
+    if not qualification.qualified:
+        payload = {
+            "instrument_id": instrument_id,
+            "family_id": family_id,
+            "status": "infrastructure_only",
+            "qualified": False,
+            "candidate_id": qualification.candidate_id,
+            "reasons": qualification.reasons,
+            "validation_accessed": False,
+            "holdout_accessed": False,
+        }
+        (run_dir / "promotion-disqualified.json").write_text(
+            json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8",
+        )
+        return payload
     index = json.loads((run_dir / "top_candidates" / "index.json").read_text(encoding="utf-8"))
     validation_states, validation_quotes, validation_bars = _load_split(dataset_root, "validation", instrument_id)
+    record_validation(governance_root, family_id, instrument_id, run_id)
     evaluated: list[CandidateResult] = []
     paths: dict[str, Path] = {}
     for entry in index[:10]:
@@ -42,14 +71,8 @@ def promote_top_candidates(
         evaluated.append(candidate)
         paths[candidate.candidate_id] = path
     champion = validation_champion(evaluated)
-    holdout_marker = run_dir / "holdout.lock.json"
-    if holdout_marker.exists():
-        raise RuntimeError("final holdout has already been consumed for this run")
+    acquire_holdout_lock(governance_root, family_id, instrument_id, run_id, champion.candidate_id)
     holdout_states, holdout_quotes, holdout_bars = _load_split(dataset_root, "holdout", instrument_id)
-    holdout_marker.write_text(
-        json.dumps({"candidate_id": champion.candidate_id, "status": "started"}) + "\n",
-        encoding="utf-8",
-    )
     holdout = run_candidate(paths[champion.candidate_id], instrument_id, holdout_states, 1, holdout_quotes, holdout_bars).metrics
     champion = CandidateResult(champion.candidate_id, champion.discovery, champion.validation, holdout)
     validation_sma = run_candidate(SMA_3_8, instrument_id, validation_states, 1, validation_quotes, validation_bars).metrics
@@ -97,10 +120,7 @@ def promote_top_candidates(
         },
         run_dir,
     )
-    holdout_marker.write_text(
-        json.dumps({"candidate_id": champion.candidate_id, "status": "completed"}) + "\n",
-        encoding="utf-8",
-    )
+    complete_holdout(governance_root, family_id, instrument_id, run_id, champion.candidate_id)
     return payload
 
 
@@ -134,8 +154,8 @@ def _aggregate_from_dict(metrics: dict[str, float]) -> AggregateMetrics:
 
 def _research_status(candidate: CandidateResult) -> str:
     if candidate.validation and candidate.holdout:
-        if candidate.validation.net_return > 0 or candidate.holdout.net_return > 0:
-            return "feature_candidate"
+        if candidate.validation.net_return > 0 and candidate.holdout.net_return > 0:
+            return "rule_candidate"
     return "rejected"
 
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC
 from datetime import datetime
+from enum import StrEnum
 from pathlib import Path
 
 
@@ -30,6 +31,15 @@ class ExecutionProfile:
 
 FAST_DISCOVERY_PROFILE = ExecutionProfile("fast", 60, 0)
 EXECUTABLE_DISCOVERY_PROFILE = ExecutionProfile("executable", 1, 1)
+
+
+class ResearchStatus(StrEnum):
+    INFRASTRUCTURE_ONLY = "infrastructure_only"
+    REJECTED = "rejected"
+    INCONCLUSIVE = "inconclusive"
+    FEATURE_CANDIDATE = "feature_candidate"
+    RULE_CANDIDATE = "rule_candidate"
+    ACCEPTED_ALPHA = "accepted_alpha"
 
 
 def utc(value: str) -> datetime:

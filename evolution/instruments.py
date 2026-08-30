@@ -38,7 +38,7 @@ SPECS = {
 }
 
 
-def build_instrument(instrument_id: str) -> CurrencyPair:
+def build_instrument(instrument_id: str, fee_rate: float = FEE_RATE) -> CurrencyPair:
     if instrument_id not in INSTRUMENT_IDS:
         raise ValueError(f"unsupported instrument: {instrument_id}")
     spec = SPECS[instrument_id]
@@ -62,8 +62,8 @@ def build_instrument(instrument_id: str) -> CurrencyPair:
         min_price=Price.from_str("0.01"),
         margin_init=Decimal("0"),
         margin_maint=Decimal("0"),
-        maker_fee=Decimal(str(FEE_RATE)),
-        taker_fee=Decimal(str(FEE_RATE)),
+        maker_fee=Decimal(str(fee_rate)),
+        taker_fee=Decimal(str(fee_rate)),
         ts_event=0,
         ts_init=0,
     )

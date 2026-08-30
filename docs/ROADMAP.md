@@ -109,9 +109,12 @@ qualification evidence, not ranking inputs.
 
 ### Deliverables
 
-- [ ] A standard fee-and-delay sensitivity table
-- [ ] A clear distinction between official fitness and diagnostic scenarios
-- [ ] A recorded reason when an apparent edge exists only under unrealistic costs
+- [x] A standard fee-and-delay sensitivity table
+- [x] A clear distinction between official fitness and diagnostic scenarios
+- [x] A recorded reason when an apparent edge exists only under unrealistic costs
+
+See [`research/cost-delay-sensitivity.md`](research/cost-delay-sensitivity.md). BTC and
+ETH are cost-fragile; BNB is negative before fees.
 
 ## 1.4 Review eligibility gates
 
@@ -125,10 +128,14 @@ rule before the next search.
 
 ### Deliverables
 
-- [ ] Sensitivity analysis for minimum closed-position thresholds
-- [ ] Counts of candidates rejected for each eligibility reason
-- [ ] Explicit rejection categories for syntax, lifecycle, sandbox, order, activity, and metric failures
-- [ ] A documented final eligibility rule
+- [x] Sensitivity analysis for minimum closed-position thresholds
+- [x] Counts available from historical checkpoint artifacts, with missing reason detail reported
+- [x] Explicit rejection categories for syntax, lifecycle, sandbox, order, activity, and metric failures
+- [x] A documented final eligibility rule
+
+The 10, 15, 20, and 30 trade thresholds produce the same eligible sets in all three
+smoke checkpoints. The registered rule remains 20 closed positions and four active
+folds. See [`research/eligibility-gate-audit.md`](research/eligibility-gate-audit.md).
 
 ## 1.5 Define discovery promotion gates
 
@@ -151,9 +158,12 @@ champion must not consume validation merely because a run reached its iteration 
 
 ### Deliverables
 
-- [ ] Machine-enforced discovery promotion gates
-- [ ] Tests showing that failing candidates cannot access validation
-- [ ] A preregistered promotion protocol in the research documentation
+- [x] Machine-enforced discovery promotion gates
+- [x] Tests showing that failing candidates cannot access validation
+- [x] A preregistered promotion protocol in the research documentation
+
+All three smoke runs were rejected before validation loading. See
+[`research/promotion-protocol.md`](research/promotion-protocol.md).
 
 ## 1.6 Protect validation and holdout
 
@@ -179,12 +189,18 @@ A positive return in one window alone is not enough for `feature_candidate` stat
 
 ### Deliverables
 
-- [ ] A hypothesis-family identifier for every formal evolution run
-- [ ] A family-level validation and holdout ledger
-- [ ] A one-time holdout lock enforced by code
-- [ ] Documented definitions for all research statuses
+- [x] A hypothesis-family identifier for every formal promotion attempt
+- [x] A family-level validation and holdout ledger
+- [x] A one-time holdout lock enforced by code
+- [x] Documented definitions for all research statuses
+
+Future formal runs must provide an immutable family ID and hypothesis before promotion.
+See [`research/experiment-ledger.md`](research/experiment-ledger.md).
 
 ## Milestone 1 exit criteria
+
+**Status: complete.** The three smoke runs remain `infrastructure_only`; validation and
+holdout remain uninspected.
 
 Milestone 1 is complete when:
 

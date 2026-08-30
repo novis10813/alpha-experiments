@@ -19,7 +19,7 @@ class EvolutionReportTests(unittest.TestCase):
             root = Path(directory)
             metrics, report = write_research_report(candidate, False, {"sma": -0.02}, root)
             payload = json.loads(metrics.read_text())
-            self.assertEqual(payload["status"], "rejected")
+            self.assertEqual(payload["status"], "inconclusive")
             self.assertIn("baseline_differences", report.read_text())
             alpha = root / "alpha.csv"
             write_alpha_signal([(1, "BTCUSDT.BINANCE", "candidate", 1.0)], alpha)

@@ -23,10 +23,14 @@ This file is the entry point for a new research session.
 - Generated artifacts in `outputs/` are scratch files. Durable findings should
   live in factor notes under `docs/research/factors/` or in focused experiment
   notes under `docs/research/`.
-- The discovery execution parity study is complete. Fast discovery may generate
-  and screen candidates, but executable discovery with one-second quotes and a
-  one-second delay now determines final discovery rank. All three smoke-run
-  executable champions remained negative and must not access validation.
+- Milestone 1 experiment-credibility work is complete. Fast discovery may
+  generate and screen candidates, but executable discovery with one-second
+  quotes, a one-second delay, and 10 bps fees determines final discovery rank.
+  Machine-enforced qualification blocks unqualified candidates before validation
+  loading, and family-level locks protect holdout use.
+- All three smoke-run executable champions remained negative under the official
+  profile. BTC and ETH are cost-fragile, while BNB remains negative before fees.
+  None may access validation.
 
 ## Next Useful Work
 
@@ -47,9 +51,9 @@ Choose one of these before writing more code:
   confirmation before considering a backtest.
 - Start a new hypothesis-based factor note using
   [Alpha Research Framework](research-framework.md) and the factor template.
-- Continue Milestone 1 with discovery-only fee and delay sensitivity. Keep the
-  registered executable profile at one-second quotes, one-second delay, and
-  10 bps fees; alternate scenarios are diagnostics only.
+- Begin Milestone 2 with hypothesis-specific seed lineages. Use the Milestone 1
+  findings to define failure modes and search constraints, but do not feed full
+  discovery reports or scenario tables back into candidate prompts.
 
 ## Avoid For Now
 
@@ -75,4 +79,7 @@ For a new session, read these in order:
 5. [Order Book Imbalance MA Spread](factors/obi_ma_spread.md)
 6. [Discovery Harness Diagnostic](discovery-harness-diagnostic.md)
 7. [Discovery Execution Parity](execution-parity.md)
-8. [Alpha Signal Format](../alpha-signal-format.md)
+8. [Cost and Delay Sensitivity](cost-delay-sensitivity.md)
+9. [Eligibility Gate Audit](eligibility-gate-audit.md)
+10. [Evolution Promotion Protocol](promotion-protocol.md)
+11. [Alpha Signal Format](../alpha-signal-format.md)

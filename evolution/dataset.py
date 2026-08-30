@@ -31,6 +31,7 @@ from nautilus_trader.model.objects import Quantity
 from nautilus_trader.persistence.catalog.parquet import ParquetDataCatalog
 from data.orderbook_quotes import QuoteRow
 from data.orderbook_quotes import depths_to_quote_rows
+from data.orderbook_quotes import resample_quote_rows
 
 
 NS_PER_MINUTE = 60_000_000_000
@@ -241,6 +242,22 @@ def manifest_for(
     )
 
 
+def _quote_row_from_tick(tick: QuoteTick) -> QuoteRow:
+    bid = float(str(tick.bid_price))
+    ask = float(str(tick.ask_price))
+    mid = (bid + ask) / 2
+    spread = ask - bid
+    return QuoteRow(
+        ts_event=tick.ts_event,
+        instrument_id=str(tick.instrument_id),
+        bid=bid,
+        ask=ask,
+        mid=mid,
+        spread=spread,
+        spread_bps=spread / mid * 10_000 if mid else 0.0,
+    )
+
+
 def _append_build_metric(output_root: Path, metric: dict[str, object]) -> None:
     path = output_root / "_metrics" / "dataset-build.jsonl"
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -262,20 +279,24 @@ def build_executable_discovery_from_fast(
     target = output_root / window.name / instrument_id
     if target.exists():
         raise RuntimeError(f"local catalog already exists: {target}")
+    quote_source = source / "source-quotes-1s"
+    if not (quote_source / "data" / "quote_tick").exists():
+        raise RuntimeError(
+            f"fast dataset has no local one-second source quotes: {quote_source}; "
+            "rebuild it with build-data",
+        )
     target.mkdir(parents=True)
     for data_type in ("custom_evolution_market_state", "bar"):
         source_type = source / "data" / data_type
         if source_type.exists():
             shutil.copytree(source_type, target / "data" / data_type)
 
-    catalog = make_catalog()
-    quotes = catalog.query(
-        OrderBookDepth10,
-        identifiers=[instrument_id],
-        start=fast_manifest.source_start,
-        end=fast_manifest.source_end,
+    quote_catalog = ParquetDataCatalog(quote_source)
+    source_quotes = quote_catalog.quote_ticks(instrument_ids=[instrument_id])
+    quote_rows = resample_quote_rows(
+        [_quote_row_from_tick(tick) for tick in source_quotes],
+        profile.quote_interval_seconds,
     )
-    quote_rows = depths_to_quote_rows(quotes, resample_seconds=profile.quote_interval_seconds)
     local_catalog = ParquetDataCatalog(target)
     _write_catalog_chunk(local_catalog, [], quote_rows, instrument_id)
     files = _catalog_hashes(target)
@@ -307,6 +328,11 @@ def build_window_from_catalog(instrument_id: str, window: Window, output_root: P
         raise RuntimeError(f"local catalog already exists: {split_dir}")
     split_dir.mkdir(parents=True, exist_ok=True)
     local_catalog = ParquetDataCatalog(split_dir)
+    source_quote_catalog = (
+        ParquetDataCatalog(split_dir / "source-quotes-1s")
+        if window.name.startswith("discovery_")
+        else None
+    )
     row_count = 0
     first_ts_event: int | None = None
     last_ts_event: int | None = None
@@ -332,10 +358,13 @@ def build_window_from_catalog(instrument_id: str, window: Window, output_root: P
         )
         aggregate_seconds = perf_counter() - stage_started
         stage_started = perf_counter()
-        day_quotes = depths_to_quote_rows(depths, resample_seconds=window.quote_interval_seconds)
+        source_quote_rows = depths_to_quote_rows(depths, resample_seconds=1)
+        day_quotes = resample_quote_rows(source_quote_rows, window.quote_interval_seconds)
         quote_build_seconds = perf_counter() - stage_started
         stage_started = perf_counter()
         _write_catalog_chunk(local_catalog, day_states, day_quotes, instrument_id)
+        if source_quote_catalog is not None:
+            _write_catalog_chunk(source_quote_catalog, [], source_quote_rows, instrument_id)
         local_write_seconds = perf_counter() - stage_started
         metric = {
             "event": "dataset_day_built",
@@ -348,6 +377,7 @@ def build_window_from_catalog(instrument_id: str, window: Window, output_root: P
             "depth_count": len(depths),
             "state_count": len(day_states),
             "quote_count": len(day_quotes),
+            "source_quote_count": len(source_quote_rows),
             "trade_fetch_seconds": trade_fetch_seconds,
             "depth_fetch_seconds": depth_fetch_seconds,
             "aggregate_seconds": aggregate_seconds,

@@ -109,6 +109,8 @@ class AggregateMetrics:
 
 
 def aggregate_folds(folds: Iterable[FoldMetrics]) -> AggregateMetrics:
+    from evolution.eligibility import evaluate_eligibility
+
     values = tuple(folds)
     if not values:
         raise ValueError("at least one fold is required")
@@ -116,9 +118,7 @@ def aggregate_folds(folds: Iterable[FoldMetrics]) -> AggregateMetrics:
     drawdowns = [fold.max_drawdown for fold in values]
     active = sum(fold.closed_positions > 0 for fold in values)
     closed = sum(fold.closed_positions for fold in values)
-    score = annualized_sharpe(value for fold in values for value in fold.daily_returns)
-    if closed < 20 or active < 4 or any(fold.rejected for fold in values):
-        score = REJECTED_SCORE
+    score = evaluate_eligibility(values).score
     return AggregateMetrics(
         combined_score=score,
         median_return=statistics.median(returns),
