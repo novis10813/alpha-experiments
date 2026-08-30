@@ -21,7 +21,12 @@ This file is the entry point for a new research session.
   Requiring `obi_5m_mean > 0` improved the shape, but the result remained small
   and unstable after cooldown and cost checks.
 - Generated artifacts in `outputs/` are scratch files. Durable findings should
-  live in factor notes under `docs/research/factors/`.
+  live in factor notes under `docs/research/factors/` or in focused experiment
+  notes under `docs/research/`.
+- The discovery execution parity study is complete. Fast discovery may generate
+  and screen candidates, but executable discovery with one-second quotes and a
+  one-second delay now determines final discovery rank. All three smoke-run
+  executable champions remained negative and must not access validation.
 
 ## Next Useful Work
 
@@ -42,6 +47,9 @@ Choose one of these before writing more code:
   confirmation before considering a backtest.
 - Start a new hypothesis-based factor note using
   [Alpha Research Framework](research-framework.md) and the factor template.
+- Continue Milestone 1 with discovery-only fee and delay sensitivity. Keep the
+  registered executable profile at one-second quotes, one-second delay, and
+  10 bps fees; alternate scenarios are diagnostics only.
 
 ## Avoid For Now
 
@@ -65,4 +73,6 @@ For a new session, read these in order:
 3. [Down-Streak Pressure](factors/down_streak_pressure.md)
 4. [Five Green Streak](factors/five_green_streak.md)
 5. [Order Book Imbalance MA Spread](factors/obi_ma_spread.md)
-6. [Alpha Signal Format](../alpha-signal-format.md)
+6. [Discovery Harness Diagnostic](discovery-harness-diagnostic.md)
+7. [Discovery Execution Parity](execution-parity.md)
+8. [Alpha Signal Format](../alpha-signal-format.md)

@@ -89,7 +89,12 @@ Keep validation and holdout physically and logically isolated from both stages.
 - [x] Tests covering quote ordering, signal availability, delay, fees, and end-of-window positions
 - [x] Deterministic executable reruns that must reproduce metrics exactly
 - [x] An offline top-N executable discovery rerank command
-- [ ] Adopt the executable profile as the registered final discovery ranking model before the next formal search
+- [x] Adopt the executable profile as the registered final discovery ranking model before the next formal search
+
+The registered protocol uses the fast profile for candidate generation and coarse
+screening. Executable discovery net daily Sharpe determines final discovery rank, and a
+second executable run must reproduce the result exactly. See
+[`research/execution-parity.md`](research/execution-parity.md).
 
 ## 1.3 Add cost and delay sensitivity
 
