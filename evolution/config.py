@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from evolution.families import EvolutionFamily
+
 import yaml
 
 from evolution.spec import run_directory
@@ -25,6 +27,7 @@ def write_run_config(
     instrument_id: str,
     run_id: str,
     iterations: int,
+    family: EvolutionFamily | None = None,
 ) -> tuple[Path, Path]:
     if iterations <= 0:
         raise ValueError("iterations must be positive")
@@ -34,7 +37,15 @@ def write_run_config(
     config["max_iterations"] = iterations
     template_dir = Path(config["prompt"]["template_dir"])
     if not template_dir.is_absolute():
-        config["prompt"]["template_dir"] = str((Path(__file__).parents[1] / template_dir).resolve())
+        template_dir = (Path(__file__).parents[1] / template_dir).resolve()
+    if family is not None:
+        template_dir = run_dir / "prompts"
+        template_dir.mkdir(parents=True, exist_ok=True)
+        for name in ("system_message.txt", "diff_user.txt"):
+            common = (Path(__file__).parent / "prompts" / name).read_text(encoding="utf-8")
+            context = "\n\n# Family context\n" + family.prompt_context + "\n" if name == "system_message.txt" else ""
+            (template_dir / name).write_text(common + context, encoding="utf-8")
+    config["prompt"]["template_dir"] = str(template_dir.resolve())
     config["log_dir"] = str((run_dir / "logs").resolve())
     config["database"]["db_path"] = str((run_dir / "program_database").resolve())
     config["database"]["artifacts_base_path"] = str((run_dir / "artifacts").resolve())

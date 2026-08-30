@@ -2,11 +2,17 @@ from __future__ import annotations
 
 import os
 import json
+import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
 from evolution.config import write_run_config
+from evolution.families import EvolutionFamily
+from evolution.families import composed_prompt_sha256
+from evolution.families import get_family
+from evolution.families import sha256_file
+from evolution.families import validate_family_instrument
 from evolution.metrics import REJECTED_SCORE
 from data.nautilus_catalog import _load_dotenv
 
@@ -25,10 +31,11 @@ def evolution_command(
     output_directory: Path,
     iterations: int,
     checkpoint: Path | None = None,
+    program_path: Path | None = None,
 ) -> list[str]:
     command = [
         "uv", "run", "openevolve-run",
-        str((Path(__file__).parent / "initial_program.py").resolve()),
+        str((program_path or (Path(__file__).parent / "initial_program.py")).resolve()),
         str((Path(__file__).parent / "evaluator.py").resolve()),
         "--config", str(config_path.resolve()),
         "--output", str(output_directory.resolve()),
@@ -46,7 +53,12 @@ def run_evolution(
     run_id: str,
     iterations: int = 30,
     checkpoint: Path | None = None,
+    family: EvolutionFamily | str | None = None,
 ) -> EvolutionRunResult:
+    if isinstance(family, str):
+        family = get_family(family)
+    if family is not None:
+        validate_family_instrument(family.family_id, instrument_id)
     _load_dotenv()
     api_key = os.environ.get("OPENROUTER_API_KEY")
     if not api_key:
@@ -58,7 +70,12 @@ def run_evolution(
     ]
     if missing:
         raise RuntimeError(f"Discovery dataset is missing: {missing[0]}")
-    config_path, run_dir = write_run_config(output_root, instrument_id, run_id, iterations)
+    config_path, run_dir = write_run_config(output_root, instrument_id, run_id, iterations, family)
+    program_path = Path(__file__).parent / "initial_program.py"
+    if family is not None:
+        program_path = run_dir / "initial_program.py"
+        shutil.copyfile(family.seed_program, program_path)
+        _write_family_metadata(run_dir, family, instrument_id, program_path)
     env = {
         "PATH": os.environ.get("PATH", ""),
         "LANG": os.environ.get("LANG", "C.UTF-8"),
@@ -70,7 +87,7 @@ def run_evolution(
         "EVOLUTION_SANDBOX_TIMEOUT": os.environ.get("EVOLUTION_SANDBOX_TIMEOUT", "300"),
     }
     completed = subprocess.run(
-        evolution_command(config_path, run_dir, iterations, checkpoint),
+        evolution_command(config_path, run_dir, iterations, checkpoint, program_path),
         cwd=Path(__file__).parents[1],
         env=env,
         capture_output=True,
@@ -84,7 +101,15 @@ def run_evolution(
     limited = completed.returncode != 0 and any(
         marker in output.lower() for marker in ("429", "rate limit", "quota")
     )
-    resume = resume_command(instrument_id, dataset_root, output_root, run_id, 300, latest) if latest else None
+    resume = resume_command(
+        instrument_id,
+        dataset_root,
+        output_root,
+        run_id,
+        300,
+        latest,
+        family.family_id if family is not None else None,
+    ) if latest else None
     return EvolutionRunResult(completed.returncode, run_dir, latest, resume, limited)
 
 
@@ -103,13 +128,41 @@ def resume_command(
     run_id: str,
     iterations: int,
     checkpoint: Path,
+    family_id: str | None = None,
 ) -> str:
-    return (
+    command = (
         "uv run python -m evolution resume"
         f" --instrument-id {instrument_id} --dataset-root {dataset_root}"
         f" --output-root {output_root} --run-id {run_id} --iterations {iterations}"
         f" --checkpoint {checkpoint}"
     )
+    return f"{command} --family-id {family_id}" if family_id else command
+
+
+def _write_family_metadata(
+    run_dir: Path,
+    family: EvolutionFamily,
+    instrument_id: str,
+    program_path: Path,
+) -> Path:
+    prompt_dir = run_dir / "prompts"
+    payload = {
+        "family_id": family.family_id,
+        "hypothesis": family.hypothesis,
+        "instrument_id": instrument_id,
+        "seed_program_sha256": sha256_file(program_path),
+        "composed_prompt_sha256": composed_prompt_sha256(
+            (prompt_dir / "system_message.txt").read_text(encoding="utf-8"),
+            (prompt_dir / "diff_user.txt").read_text(encoding="utf-8"),
+        ),
+    }
+    path = run_dir / "run_metadata.json"
+    encoded = json.dumps(payload, indent=2, sort_keys=True) + "\n"
+    if path.exists() and path.read_text(encoding="utf-8") != encoded:
+        raise RuntimeError("immutable family run metadata does not match")
+    if not path.exists():
+        path.write_text(encoded, encoding="utf-8")
+    return path
 
 
 def export_top_candidates(checkpoint: Path, run_dir: Path, limit: int = 10) -> Path:

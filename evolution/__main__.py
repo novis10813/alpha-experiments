@@ -7,6 +7,8 @@ from evolution.dataset import build_executable_discovery_from_fast
 from evolution.dataset import build_window_from_catalog
 from evolution.diagnostic import run_discovery_diagnostic
 from evolution.eligibility import audit_checkpoint_eligibility
+from evolution.families import FAMILY_REGISTRY
+from evolution.families import get_family
 from evolution.rerank import rerank_discovery_candidates
 from evolution.runner import run_evolution
 from evolution.sensitivity import run_sensitivity
@@ -40,6 +42,7 @@ def parse_args() -> argparse.Namespace:
         run.add_argument("--dataset-root", type=Path, default=Path(".local/evolution-data"))
         run.add_argument("--output-root", type=Path, default=Path("outputs/evolution"))
         run.add_argument("--run-id", required=True)
+        run.add_argument("--family-id", choices=tuple(FAMILY_REGISTRY))
         run.add_argument("--iterations", type=int, default=30 if name == "evolve" else 300)
         if name == "resume":
             run.add_argument("--checkpoint", type=Path, required=True)
@@ -155,6 +158,7 @@ def main() -> None:
         args.run_id,
         args.iterations,
         getattr(args, "checkpoint", None),
+        get_family(args.family_id) if getattr(args, "family_id", None) else None,
     )
     print(f"OpenEvolve exit code: {result.returncode}")
     print(f"Output: {result.output_directory}")
