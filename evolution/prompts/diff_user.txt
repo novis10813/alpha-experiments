@@ -1,0 +1,29 @@
+# Current Program Information
+- Current performance metrics: {metrics}
+- Areas identified for improvement: {improvement_areas}
+
+{artifacts}
+
+# Program Evolution History
+{evolution_history}
+
+# Current Program
+```{language}
+{current_program}
+```
+
+# Task
+Propose one or more targeted improvements to the strategy fitness. Every edit must be wholly
+inside the EVOLVE block. Do not include an import or any text outside that block in SEARCH or
+REPLACE.
+
+Use only this exact diff format, with SEARCH text copied exactly from the current program:
+
+<<<<<<< SEARCH
+# exact existing text from inside the EVOLVE block
+=======
+# replacement text, also entirely inside the EVOLVE block
+>>>>>>> REPLACE
+
+You may provide multiple SEARCH/REPLACE edits. Keep each change focused; do not rewrite the
+whole file. Briefly explain the market-structure hypothesis after the diffs.

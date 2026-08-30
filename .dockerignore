@@ -1,0 +1,14 @@
+*
+!pyproject.toml
+!uv.lock
+!alphas/
+!alphas/**
+!common/
+!common/**
+!data/
+!data/**
+!evolution/
+!evolution/**
+**/__pycache__/
+*.py[oc]
+.env

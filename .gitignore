@@ -17,3 +17,6 @@ wheels/
 # Generated experiment outputs
 outputs/*
 !outputs/README.md
+
+# Local evolution datasets and container scratch
+.local/evolution-data*/
