@@ -21,6 +21,10 @@ docs/research/
     <factor_name>.md
   templates/
     factor-research-template.md
+  literature/
+    README.md
+    registry.json
+    papers/
 ```
 
 ## Factor Status
@@ -40,6 +44,9 @@ Use one status per factor note:
 
 - Keep one factor per file under `docs/research/factors/`.
 - Use `docs/research/templates/factor-research-template.md` for new factor notes.
+- Use the [Literature and Hypothesis Registry](literature/README.md) for verified
+  source metadata and proposed source-grounded hypotheses. Check it before
+  researching a new paper.
 - Record the data window, instrument, input files, report files, and commands.
 - Link to generated reports, but do not copy large tables or embed generated HTML.
 - Keep the canonical alpha row shape in `docs/alpha-signal-format.md`; research

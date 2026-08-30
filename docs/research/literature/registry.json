@@ -1,0 +1,150 @@
+{
+  "schema_version": 1,
+  "description": "Verified literature metadata and source-grounded research hypotheses. Proposed hypotheses are not reproduced results.",
+  "sources": [
+    {
+      "paper_id": "cont-kukanov-stoikov-2014",
+      "canonical_source_id": "doi:10.1093/jjfinec/nbt003",
+      "title": "The Price Impact of Order Book Events",
+      "authors": ["Rama Cont", "Arseniy Kukanov", "Sasha Stoikov"],
+      "year": 2014,
+      "source_url": "https://doi.org/10.1093/jjfinec/nbt003",
+      "note_path": "docs/research/literature/papers/cont-kukanov-stoikov-2014.md",
+      "evidence_tier": "primary_abstract",
+      "tags": ["order-flow-imbalance", "price-impact", "limit-order-book"],
+      "identifiers": {"doi": "10.1093/jjfinec/nbt003"},
+      "status": "verified",
+      "hypotheses": [
+        {
+          "hypothesis_id": "cont-obi-pressure-001",
+          "statement": "Stronger contemporaneous order-book or signed-flow pressure may sort short-horizon price changes directionally.",
+          "mechanism": "Supply and demand changes at the best quotes can move prices when available depth absorbs only part of the imbalance.",
+          "primary_features": ["depth10_obi_mean", "depth10_obi_last", "volume_imbalance"],
+          "context_features": ["spread_bps", "trade_imbalance", "relative_spread_15m"],
+          "expected_direction": "positive",
+          "diagnostic_horizons": [1, 5, 15],
+          "classification": "feature",
+          "prerequisites": ["Define the proxy for event-level order-flow imbalance", "Confirm end-of-minute timestamp semantics"],
+          "missing_fields": ["Event-level best-quote order-flow changes", "Instrument-specific depth normalization"]
+        },
+        {
+          "hypothesis_id": "cont-depth-context-001",
+          "statement": "Liquidity and depth context may change the strength of the relation between pressure and price change.",
+          "mechanism": "The same order-flow pressure can have different price effects when available market depth or trading costs differ.",
+          "primary_features": ["depth10_obi_mean", "volume_imbalance"],
+          "context_features": ["spread_bps", "relative_spread_15m", "relative_volume_15m"],
+          "expected_direction": "mixed",
+          "diagnostic_horizons": [1, 5, 15],
+          "classification": "filter",
+          "prerequisites": ["Use only information available at ts_event", "Compare pressure within comparable liquidity regimes"],
+          "missing_fields": ["Event-level market depth", "Venue-specific liquidity measures"]
+        }
+      ]
+    },
+    {
+      "paper_id": "bouchaud-farmer-lillo-2009",
+      "canonical_source_id": "doi:10.1016/b978-012374258-2.50006-3",
+      "title": "How Markets Slowly Digest Changes in Supply and Demand",
+      "authors": ["Jean-Philippe Bouchaud", "J. Doyne Farmer", "Fabrizio Lillo"],
+      "year": 2009,
+      "source_url": "https://doi.org/10.1016/B978-012374258-2.50006-3",
+      "note_path": "docs/research/literature/papers/bouchaud-farmer-lillo-2009.md",
+      "evidence_tier": "metadata_only",
+      "tags": ["market-impact", "supply-and-demand", "microstructure"],
+      "identifiers": {"doi": "10.1016/B978-012374258-2.50006-3"},
+      "status": "verified",
+      "hypotheses": [
+        {
+          "hypothesis_id": "bouchaud-supply-demand-001",
+          "statement": "No source-specific directional hypothesis is asserted until the chapter's market, data, and empirical claims receive full-text verification.",
+          "mechanism": "Supply and demand changes are a plausible market-impact channel, but metadata alone cannot identify its observable proxy or direction in this repository.",
+          "primary_features": ["volume_imbalance", "trade_imbalance"],
+          "context_features": ["spread_bps", "realized_volatility_15m"],
+          "expected_direction": "uncertain",
+          "diagnostic_horizons": [1, 5, 15],
+          "classification": "feature",
+          "prerequisites": ["Verify the chapter's empirical scope and definitions from full text", "Define a repository-specific observable proxy"],
+          "missing_fields": ["Verified market and asset scope", "Verified measurement horizon", "Verified source feature definitions"]
+        }
+      ]
+    },
+    {
+      "paper_id": "stoikov-2018",
+      "canonical_source_id": "doi:10.1080/14697688.2018.1489139",
+      "title": "The micro-price: a high-frequency estimator of future prices",
+      "authors": ["Sasha Stoikov"],
+      "year": 2018,
+      "source_url": "https://doi.org/10.1080/14697688.2018.1489139",
+      "note_path": "docs/research/literature/papers/stoikov-2018.md",
+      "evidence_tier": "primary_abstract",
+      "tags": ["micro-price", "order-book-imbalance", "short-horizon-prediction"],
+      "identifiers": {"doi": "10.1080/14697688.2018.1489139"},
+      "status": "verified",
+      "hypotheses": [
+        {
+          "hypothesis_id": "stoikov-microprice-proxy-001",
+          "statement": "A depth-informed price estimate may contain more short-horizon information than a mid-price baseline.",
+          "mechanism": "Bid and ask depth asymmetry can shift the expected next price relative to the midpoint.",
+          "primary_features": ["depth10_obi_last", "depth10_obi_mean", "best_bid", "best_ask"],
+          "context_features": ["spread_bps", "relative_spread_15m", "realized_volatility_15m"],
+          "expected_direction": "positive",
+          "diagnostic_horizons": [1, 5, 15],
+          "classification": "feature",
+          "prerequisites": ["Specify and implement a documented micro-price proxy", "Construct a timestamp-safe mid-price baseline"],
+          "missing_fields": ["Dedicated micro-price field", "Source-specific asset and venue scope"]
+        }
+      ]
+    },
+    {
+      "paper_id": "bieganowski-slepaczuk-2026",
+      "canonical_source_id": "arxiv:2602.00776",
+      "title": "Explainable Patterns in Cryptocurrency Microstructure",
+      "authors": ["Bartosz Bieganowski", "Robert Ślepaczuk"],
+      "year": 2026,
+      "source_url": "https://arxiv.org/abs/2602.00776",
+      "note_path": "docs/research/literature/papers/bieganowski-slepaczuk-2026.md",
+      "evidence_tier": "primary_full_text",
+      "tags": ["cryptocurrency", "limit-order-book", "explainable-machine-learning", "cross-asset"],
+      "identifiers": {"persistent_id": "arxiv:2602.00776", "doi": "10.48550/arXiv.2602.00776"},
+      "status": "verified",
+      "hypotheses": [
+        {
+          "hypothesis_id": "bieganowski-cross-asset-001",
+          "statement": "Relative order-book and signed-flow features may show comparable short-horizon ordering across the repository's instruments.",
+          "mechanism": "Continuous double-auction mechanics can make normalized liquidity-taking pressure informative across assets, subject to local liquidity differences.",
+          "primary_features": ["depth10_obi_last", "depth10_obi_mean", "volume_imbalance", "trade_imbalance"],
+          "context_features": ["spread_bps", "relative_spread_15m", "realized_volatility_15m", "relative_trade_density_15m"],
+          "expected_direction": "mixed",
+          "diagnostic_horizons": [1, 5, 15],
+          "classification": "feature",
+          "prerequisites": ["Compare instruments with common timestamp and feature definitions", "Keep the state timestamp at the completed interval end"],
+          "missing_fields": ["The paper's 1-second engineered feature library", "Repository coverage for the paper's asset set"]
+        },
+        {
+          "hypothesis_id": "bieganowski-spread-filter-001",
+          "statement": "Wider relative spread may weaken the usefulness of pressure features as a short-horizon signal.",
+          "mechanism": "Wider spreads raise execution friction and can indicate uncertainty or adverse-selection risk around the observed pressure.",
+          "primary_features": ["depth10_obi_last", "volume_imbalance"],
+          "context_features": ["relative_spread_15m", "spread_bps", "realized_volatility_15m"],
+          "expected_direction": "negative",
+          "diagnostic_horizons": [1, 5, 15],
+          "classification": "filter",
+          "prerequisites": ["Define a spread regime without importing a source threshold", "Separate predictive ordering from execution-cost effects"],
+          "missing_fields": ["Repository-equivalent 1-second spread series", "Explicit cost and delay assumptions for any execution test"]
+        },
+        {
+          "hypothesis_id": "bieganowski-microstructure-rule-001",
+          "statement": "A pressure state combined with liquidity context may be a useful transparent rule idea before any prediction model is introduced.",
+          "mechanism": "Order-flow pressure, spread, and trade activity describe distinct information, friction, and participation channels.",
+          "primary_features": ["depth10_obi_last", "volume_imbalance", "signed_flow_persistence_5m"],
+          "context_features": ["relative_spread_15m", "relative_trade_density_15m", "realized_volatility_15m"],
+          "expected_direction": "uncertain",
+          "diagnostic_horizons": [1, 5, 15],
+          "classification": "rule_idea",
+          "prerequisites": ["Define observable state boundaries from discovery data only", "Run de-overlapped diagnostics before strategy work"],
+          "missing_fields": ["A repository-specific rule definition", "Transaction-cost and delay assumptions"]
+        }
+      ]
+    }
+  ]
+}

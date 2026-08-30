@@ -82,4 +82,5 @@ For a new session, read these in order:
 8. [Cost and Delay Sensitivity](cost-delay-sensitivity.md)
 9. [Eligibility Gate Audit](eligibility-gate-audit.md)
 10. [Evolution Promotion Protocol](promotion-protocol.md)
-11. [Alpha Signal Format](../alpha-signal-format.md)
+11. [Literature and Hypothesis Registry](literature/README.md)
+12. [Alpha Signal Format](../alpha-signal-format.md)
