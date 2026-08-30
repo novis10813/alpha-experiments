@@ -127,7 +127,7 @@ def run_evolution(
         random_seed=seed,
         family_id=family.family_id if family is not None else None,
         advancement_record=advancement_record,
-    ) if latest and advancement_record else None
+    ) if latest else None
     return EvolutionRunResult(completed.returncode, run_dir, latest, resume, limited)
 
 
@@ -180,8 +180,9 @@ def _write_family_metadata(
     }
     path = run_dir / "run_metadata.json"
     budget_path = run_dir / "run-metadata.json"
-    metadata = json.loads(budget_path.read_text(encoding="utf-8")) if budget_path.exists() else {}
     existing = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    budget_metadata = json.loads(budget_path.read_text(encoding="utf-8")) if budget_path.exists() else {}
+    metadata = {**budget_metadata, **existing}
     for key, value in payload.items():
         if key in existing and existing[key] != value:
             raise RuntimeError("immutable family run metadata does not match")

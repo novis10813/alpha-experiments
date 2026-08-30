@@ -48,6 +48,17 @@ def write_run_config(
         "run_id": run_id,
         **budget_metadata(iterations, seed, selected_stage),
     }
+    existing_metadata_path = run_dir / "run_metadata.json"
+    if not existing_metadata_path.exists():
+        existing_metadata_path = run_dir / "run-metadata.json"
+    if existing_metadata_path.exists():
+        existing_metadata = json.loads(existing_metadata_path.read_text(encoding="utf-8"))
+        for key in ("instrument_id", "run_id"):
+            if key in existing_metadata and existing_metadata[key] != run_metadata[key]:
+                raise ValueError(f"run metadata {key} does not match")
+        for key in ("family_id", "hypothesis", "seed_program_sha256", "composed_prompt_sha256"):
+            if key in existing_metadata:
+                run_metadata[key] = existing_metadata[key]
     if advancement_record is not None:
         run_metadata["advancement_record"] = str(advancement_record.resolve())
     template_dir = Path(config["prompt"]["template_dir"])
@@ -72,10 +83,10 @@ def write_run_config(
         json.dumps(redacted, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
-    (run_dir / "run-metadata.json").write_text(
-        json.dumps(run_metadata, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
+    encoded_metadata = json.dumps(run_metadata, indent=2, sort_keys=True) + "\n"
+    (run_dir / "run_metadata.json").write_text(encoded_metadata, encoding="utf-8")
+    # Keep the search-policy spelling as a compatibility alias for existing tooling.
+    (run_dir / "run-metadata.json").write_text(encoded_metadata, encoding="utf-8")
     return path, run_dir
 
 

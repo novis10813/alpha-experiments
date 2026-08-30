@@ -25,8 +25,12 @@ class EvolutionFamilyTests(unittest.TestCase):
     def test_each_seed_resets_state_and_produces_identical_outputs(self):
         from evolution.backtest import run_candidate
         from evolution.families import FAMILY_REGISTRY
+        from evolution.market_state import EvolutionMarketState
         from evolution.sandbox_worker import _synthetic_states
 
+        self.assertEqual(len(EvolutionMarketState.FIELDS), 32)
+        self.assertIn("return_5m", EvolutionMarketState.FIELDS)
+        self.assertIn("relative_spread_15m", EvolutionMarketState.FIELDS)
         for family in FAMILY_REGISTRY.values():
             instrument = family.allowed_instruments[0]
             first = run_candidate(family.seed_program, instrument, _synthetic_states(instrument))
@@ -78,6 +82,10 @@ class EvolutionFamilyTests(unittest.TestCase):
             self.assertEqual(metadata["family_id"], family.family_id)
             self.assertEqual(metadata["hypothesis"], family.hypothesis)
             self.assertEqual(metadata["instrument_id"], "BTCUSDT.BINANCE")
+            self.assertEqual(metadata["budget_stage"], "search_smoke")
+            self.assertEqual(metadata["random_seed"], 20260829)
+            budget_metadata = json.loads((result.output_directory / "run-metadata.json").read_text())
+            self.assertEqual(budget_metadata, metadata)
             self.assertEqual(metadata["seed_program_sha256"], hashlib.sha256(
                 family.seed_program.read_bytes()
             ).hexdigest())
@@ -103,7 +111,10 @@ class EvolutionFamilyTests(unittest.TestCase):
             run.return_value = subprocess.CompletedProcess([], 0, "", "")
             result = run_evolution("BTCUSDT.BINANCE", dataset, root / "out", "r1")
             self.assertEqual(Path(run.call_args.args[0][3]), Path("evolution/initial_program.py").resolve())
-            self.assertFalse((result.output_directory / "run_metadata.json").exists())
+            metadata = json.loads((result.output_directory / "run_metadata.json").read_text())
+            self.assertNotIn("family_id", metadata)
+            self.assertEqual(metadata["random_seed"], 20260829)
+            self.assertEqual(metadata["budget_stage"], "search_smoke")
 
     def test_invalid_family_instrument_is_rejected_before_openevolve(self):
         from evolution.runner import run_evolution
