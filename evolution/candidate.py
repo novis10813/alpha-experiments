@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import ast
 import hashlib
+import textwrap
 from dataclasses import dataclass
 from pathlib import Path
+
+from evolution.rules import validate_rule_source
 
 
 EVOLVE_START = "# EVOLVE-BLOCK-START"
@@ -44,11 +47,15 @@ def skeleton_hash(source: str) -> str:
     return hashlib.sha256((prefix + EVOLVE_START + EVOLVE_END + suffix).encode()).hexdigest()
 
 
-def validate_candidate(source: str, reference_source: str) -> ValidationResult:
+def validate_candidate(
+    source: str,
+    reference_source: str,
+    expected_family_id: str | None = None,
+) -> ValidationResult:
     errors: list[str] = []
     try:
         prefix, block, suffix = split_evolve_block(source)
-        ref_prefix, _, ref_suffix = split_evolve_block(reference_source)
+        ref_prefix, ref_block, ref_suffix = split_evolve_block(reference_source)
         if prefix != ref_prefix or suffix != ref_suffix:
             errors.append("trusted skeleton was modified")
     except ValueError as exc:
@@ -56,8 +63,19 @@ def validate_candidate(source: str, reference_source: str) -> ValidationResult:
 
     try:
         tree = ast.parse(source)
+        reference_tree = ast.parse(reference_source)
     except SyntaxError as exc:
         return ValidationResult(False, (f"syntax error: {exc.msg}",), 0.0)
+
+    reference_declarative = _is_declarative_class(reference_tree)
+    candidate_declarative = _is_declarative_class(tree)
+    if reference_declarative:
+        return _validate_declarative(
+            source, block, tree, reference_source, ref_block, reference_tree,
+            expected_family_id, errors,
+        )
+    if candidate_declarative:
+        errors.append("declarative candidate requires a declarative family reference")
 
     evolved_tree = _parse_block(block, prefix)
     if evolved_tree is None:
@@ -75,7 +93,80 @@ def validate_candidate(source: str, reference_source: str) -> ValidationResult:
             if required not in methods:
                 errors.append(f"EvolvedStrategy is missing {required}")
 
-    for node in ast.walk(evolved_tree):
+    _check_forbidden(evolved_tree, errors)
+    return ValidationResult(not errors, tuple(dict.fromkeys(errors)), _legacy_complexity(evolved_tree))
+
+
+def validate_candidate_file(
+    program_path: str | Path,
+    reference_path: str | Path,
+    expected_family_id: str | None = None,
+) -> ValidationResult:
+    return validate_candidate(
+        Path(program_path).read_text(encoding="utf-8"),
+        Path(reference_path).read_text(encoding="utf-8"),
+        expected_family_id,
+    )
+
+
+def _validate_declarative(
+    source: str,
+    block: str,
+    tree: ast.Module,
+    reference_source: str,
+    reference_block: str,
+    reference_tree: ast.Module,
+    expected_family_id: str | None,
+    errors: list[str],
+) -> ValidationResult:
+    classes = [node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "EvolvedStrategy"]
+    if len(classes) != 1:
+        errors.append("candidate must define exactly one EvolvedStrategy class")
+    elif not _inherits_rule_interpreter(classes[0]):
+        errors.append("declarative EvolvedStrategy must inherit RuleInterpreterStrategy")
+
+    parsed = validate_rule_source(block)
+    if not parsed.valid or parsed.spec is None:
+        errors.extend(f"RULE_SPEC: {error.path}: {error.message}" for error in parsed.errors)
+        complexity = 0.0
+    else:
+        candidate_family = parsed.spec.family_id
+        reference = validate_rule_source(reference_block)
+        reference_family = reference.spec.family_id if reference.spec is not None else None
+        if expected_family_id is not None and candidate_family != expected_family_id:
+            errors.append(f"candidate family {candidate_family!r} does not match run family {expected_family_id!r}")
+        if reference_family is not None and candidate_family != reference_family:
+            errors.append(f"candidate family {candidate_family!r} does not match reference family {reference_family!r}")
+        # Structural complexity: condition nodes plus the four persistence
+        # controls, independent of their numeric magnitudes.
+        complexity = float(
+            len(parsed.spec.entry.conditions)
+            + len(parsed.spec.exit.conditions)
+            + 4
+        )
+    try:
+        block_tree = ast.parse(textwrap.dedent(block))
+    except SyntaxError:
+        block_tree = ast.Module(body=[], type_ignores=[])
+    _check_forbidden(block_tree, errors)
+    return ValidationResult(not errors, tuple(dict.fromkeys(errors)), complexity)
+
+
+def _is_declarative_class(tree: ast.Module) -> bool:
+    return any(
+        isinstance(node, ast.ClassDef)
+        and node.name == "EvolvedStrategy"
+        and _inherits_rule_interpreter(node)
+        for node in tree.body
+    )
+
+
+def _inherits_rule_interpreter(node: ast.ClassDef) -> bool:
+    return any(isinstance(base, ast.Name) and base.id == "RuleInterpreterStrategy" for base in node.bases)
+
+
+def _check_forbidden(tree: ast.AST, errors: list[str]) -> None:
+    for node in ast.walk(tree):
         if isinstance(node, (ast.Import, ast.ImportFrom)):
             names = [alias.name for alias in node.names] if isinstance(node, ast.Import) else [node.module or ""]
             for name in names:
@@ -96,24 +187,17 @@ def validate_candidate(source: str, reference_source: str) -> ValidationResult:
                 errors.append("candidate may only place orders through enter_long/exit_long")
         elif isinstance(node, (ast.Global, ast.Nonlocal)):
             errors.append(f"forbidden statement: {type(node).__name__}")
-    return ValidationResult(not errors, tuple(dict.fromkeys(errors)), float(sum(1 for _ in ast.walk(evolved_tree))))
-
-
-def validate_candidate_file(program_path: str | Path, reference_path: str | Path) -> ValidationResult:
-    return validate_candidate(
-        Path(program_path).read_text(encoding="utf-8"),
-        Path(reference_path).read_text(encoding="utf-8"),
-    )
 
 
 def _parse_block(block: str, prefix: str) -> ast.Module | None:
-    class_indent = "    " if prefix.rstrip().endswith("class EvolvedStrategy(Strategy):") else ""
     try:
-        if class_indent:
-            return ast.parse("class _Candidate:\n" + block)
-        return ast.parse(block)
+        return ast.parse(textwrap.dedent(block))
     except SyntaxError:
         return None
+
+
+def _legacy_complexity(tree: ast.AST) -> float:
+    return float(sum(1 for _ in ast.walk(tree)))
 
 
 def _call_name(node: ast.expr) -> str:

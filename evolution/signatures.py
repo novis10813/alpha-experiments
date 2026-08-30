@@ -3,13 +3,15 @@ from __future__ import annotations
 import ast
 import hashlib
 import json
-from typing import Any
 
 from evolution.candidate import split_evolve_block
+from evolution.rules import rule_source_signature
 
 
 def source_signature(source: str) -> str:
-    """Hash the candidate evolve block's AST, ignoring comments and formatting."""
+    """Sign declarative rules canonically and legacy evolve blocks by AST."""
+    if _is_declarative_source(source):
+        return rule_source_signature(source)
     try:
         _, block, _ = split_evolve_block(source)
         tree = ast.parse("class _Candidate:\n" + block)
@@ -19,12 +21,25 @@ def source_signature(source: str) -> str:
     return _sha256(normalized)
 
 
+def _is_declarative_source(source: str) -> bool:
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return False
+    return any(
+        isinstance(node, ast.ClassDef)
+        and node.name == "EvolvedStrategy"
+        and any(isinstance(base, ast.Name) and base.id == "RuleInterpreterStrategy" for base in node.bases)
+        for node in tree.body
+    )
+
+
 def behavior_signature(fold_signatures: list[str] | tuple[str, ...]) -> str:
     """Hash ordered per-fold behavior signatures into one candidate signature."""
     return _sha256(json.dumps(list(fold_signatures), separators=(",", ":")))
 
 
-def behavior_signature_from_reports(*reports: Any) -> str:
+def behavior_signature_from_reports(*reports):
     """Hash deterministic position/trade report rows without rerunning a candidate."""
     payload = []
     for label, report in zip(("positions", "fills", "orders"), reports, strict=True):
@@ -32,7 +47,7 @@ def behavior_signature_from_reports(*reports: Any) -> str:
     return _sha256(json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str))
 
 
-def behavior_signature_from_payload(payload: dict[str, Any]) -> str:
+def behavior_signature_from_payload(payload):
     folds = payload.get("folds", [])
     fold_signatures = [
         str(fold["behavior_signature"])
@@ -41,8 +56,6 @@ def behavior_signature_from_payload(payload: dict[str, Any]) -> str:
     ]
     if len(fold_signatures) == len(folds):
         return behavior_signature(fold_signatures)
-    # Compatibility fallback for older artifacts: hash only behavior-bearing fields,
-    # never fitness or ranking values.
     return behavior_signature([
         _sha256(json.dumps({
             "positions": fold.get("positions", []),
@@ -53,17 +66,11 @@ def behavior_signature_from_payload(payload: dict[str, Any]) -> str:
     ])
 
 
-def _report_rows(report: Any) -> list[list[str]]:
+def _report_rows(report):
     if report is None or len(report) == 0:
         return []
-    columns = sorted(
-        column for column in report.columns
-        if not _excluded_behavior_column(str(column))
-    )
-    rows = []
-    for row in report[columns].itertuples(index=False, name=None):
-        rows.append([str(value) for value in row])
-    return rows
+    columns = sorted(column for column in report.columns if not _excluded_behavior_column(str(column)))
+    return [[str(value) for value in row] for row in report[columns].itertuples(index=False, name=None)]
 
 
 def _excluded_behavior_column(column: str) -> bool:

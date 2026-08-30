@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -23,6 +24,7 @@ def docker_command(
     instrument_id: str,
     image: str = DEFAULT_IMAGE,
     container_name: str | None = None,
+    reference_path: Path | None = None,
 ) -> list[str]:
     name = container_name or f"alpha-evolution-{uuid4().hex}"
     command = [
@@ -32,13 +34,23 @@ def docker_command(
         "--security-opt", "no-new-privileges:true", "--tmpfs", "/tmp:rw,noexec,nosuid,size=64m",
         "--mount", f"type=bind,src={program_path.resolve()},dst=/candidate/program.py,readonly",
     ]
+    if reference_path is not None:
+        command.extend([
+            "--mount",
+            f"type=bind,src={reference_path.resolve()},dst=/candidate/reference.py,readonly",
+        ])
     for fold in range(1, 6):
         source = (dataset_root / f"discovery_{fold}" / instrument_id).resolve()
         command.extend([
             "--mount",
             f"type=bind,src={source},dst=/dataset/discovery_{fold}/{instrument_id},readonly",
         ])
-    command.extend(["--env", f"EVOLUTION_INSTRUMENT_ID={instrument_id}", image])
+    command.extend([
+        "--env", f"EVOLUTION_INSTRUMENT_ID={instrument_id}",
+        "--env", f"EVOLUTION_FAMILY_ID={os.environ.get('EVOLUTION_FAMILY_ID', '')}",
+        "--env", "EVOLUTION_REFERENCE_PROGRAM=/candidate/reference.py" if reference_path is not None else "EVOLUTION_REFERENCE_PROGRAM=/app/evolution/initial_program.py",
+        image,
+    ])
     return command
 
 
@@ -48,9 +60,10 @@ def run_sandbox(
     instrument_id: str,
     timeout_seconds: int = 300,
     image: str = DEFAULT_IMAGE,
+    reference_path: Path | None = None,
 ) -> SandboxResult:
     name = f"alpha-evolution-{uuid4().hex}"
-    command = docker_command(program_path, dataset_root, instrument_id, image, name)
+    command = docker_command(program_path, dataset_root, instrument_id, image, name, reference_path)
     try:
         completed = subprocess.run(command, capture_output=True, text=True, timeout=timeout_seconds)
     except subprocess.TimeoutExpired:

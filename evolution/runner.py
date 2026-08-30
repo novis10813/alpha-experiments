@@ -101,6 +101,8 @@ def run_evolution(
         "EVOLUTION_DATASET_ROOT": str(dataset_root.resolve()),
         "EVOLUTION_SANDBOX_IMAGE": os.environ.get("EVOLUTION_SANDBOX_IMAGE", "alpha-evolution-sandbox:0.1"),
         "EVOLUTION_SANDBOX_TIMEOUT": os.environ.get("EVOLUTION_SANDBOX_TIMEOUT", "300"),
+        "EVOLUTION_FAMILY_ID": family.family_id if family is not None else "",
+        "EVOLUTION_REFERENCE_PROGRAM": str(program_path.resolve()),
     }
     completed = subprocess.run(
         evolution_command(config_path, run_dir, iterations, checkpoint, program_path),

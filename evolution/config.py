@@ -13,6 +13,26 @@ from evolution.spec import run_directory
 
 BASE_CONFIG = Path(__file__).parent / "configs" / "base.yaml"
 SECRET_NAMES = {"api_key", "access_key", "secret_key", "password", "token"}
+_FAMILY_RULE_GRAMMAR = """
+Family rule grammar (schema-v2): RULE_SPEC is exactly one class-level literal
+plain mapping with keys family_id, entry, exit, and cooldown_bars. entry and
+exit each have a flat conditions list of {feature, op, value}; entry also has
+confirmations, while exit has confirmations, min_hold_bars, and mode (all or
+any). Use only trusted features and gt/gte/lt/lte. Each mutation changes one
+oralizable rule component only: one feature, operator, threshold, confirmation
+count, exit mode, minimum hold, or cooldown. Do not add code or unrestricted
+LLM feedback.
+"""
+_FAMILY_DIFF_PROMPT = """# Declarative family mutation task
+
+Edit only the class-level `RULE_SPEC` literal inside the EVOLVE block. Keep the
+exact schema-v2 flat mapping grammar from the family context. Conditions must be
+literal mappings with exactly `feature`, `op`, and `value`; do not add nested
+logic, methods, imports, or executable expressions. Make one oralizable rule
+component mutation per proposal and preserve the family_id. Return only a
+SEARCH/REPLACE diff whose replacement remains a RULE_SPEC literal. Do not use
+unrestricted LLM feedback.
+"""
 
 
 def load_base_config() -> dict[str, Any]:
@@ -67,10 +87,16 @@ def write_run_config(
     if family is not None:
         template_dir = run_dir / "prompts"
         template_dir.mkdir(parents=True, exist_ok=True)
-        for name in ("system_message.txt", "diff_user.txt"):
-            common = (Path(__file__).parent / "prompts" / name).read_text(encoding="utf-8")
-            context = "\n\n# Family context\n" + family.prompt_context + "\n" if name == "system_message.txt" else ""
-            (template_dir / name).write_text(common + context, encoding="utf-8")
+        common_system = (Path(__file__).parent / "prompts" / "system_message.txt").read_text(encoding="utf-8")
+        common_diff = (Path(__file__).parent / "prompts" / "diff_user.txt").read_text(encoding="utf-8")
+        (template_dir / "system_message.txt").write_text(
+            common_system + "\n\n# Family context\n" + _FAMILY_RULE_GRAMMAR + "\n" + family.prompt_context + "\n",
+            encoding="utf-8",
+        )
+        (template_dir / "diff_user.txt").write_text(
+            _FAMILY_DIFF_PROMPT + "\n# Family identifier\n" + family.family_id + "\n\n" + common_diff,
+            encoding="utf-8",
+        )
     config["prompt"]["template_dir"] = str(template_dir.resolve())
     config["log_dir"] = str((run_dir / "logs").resolve())
     config["database"]["db_path"] = str((run_dir / "program_database").resolve())
@@ -85,7 +111,6 @@ def write_run_config(
     )
     encoded_metadata = json.dumps(run_metadata, indent=2, sort_keys=True) + "\n"
     (run_dir / "run_metadata.json").write_text(encoded_metadata, encoding="utf-8")
-    # Keep the search-policy spelling as a compatibility alias for existing tooling.
     (run_dir / "run-metadata.json").write_text(encoded_metadata, encoding="utf-8")
     return path, run_dir
 

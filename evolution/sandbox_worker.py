@@ -18,13 +18,17 @@ from evolution.spec import DISCOVERY_FOLDS
 
 
 PROGRAM_PATH = Path("/candidate/program.py")
-REFERENCE_PATH = Path("/app/evolution/initial_program.py")
+REFERENCE_PATH = Path(os.environ.get("EVOLUTION_REFERENCE_PROGRAM", "/app/evolution/initial_program.py"))
 DATASET_ROOT = Path("/dataset")
 
 
 def main() -> None:
     instrument_id = os.environ["EVOLUTION_INSTRUMENT_ID"]
-    validation = validate_candidate_file(PROGRAM_PATH, REFERENCE_PATH)
+    validation = validate_candidate_file(
+        PROGRAM_PATH,
+        REFERENCE_PATH,
+        os.environ.get("EVOLUTION_FAMILY_ID") or None,
+    )
     if not validation.valid:
         print(json.dumps({"ok": False, "stage": 1, "error": "; ".join(validation.errors)}))
         return

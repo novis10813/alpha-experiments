@@ -15,8 +15,17 @@ from openevolve.evaluation_result import EvaluationResult
 REFERENCE_PATH = Path(__file__).with_name("initial_program.py")
 
 
+def reference_path() -> Path:
+    configured = os.environ.get("EVOLUTION_REFERENCE_PROGRAM")
+    return Path(configured) if configured else REFERENCE_PATH
+
+
 def evaluate(program_path: str) -> EvaluationResult:
-    validation = validate_candidate_file(program_path, REFERENCE_PATH)
+    validation = validate_candidate_file(
+        program_path,
+        reference_path(),
+        os.environ.get("EVOLUTION_FAMILY_ID"),
+    )
     if not validation.valid:
         return _failure(1, "; ".join(validation.errors), validation.complexity)
     dataset_root = os.environ.get("EVOLUTION_DATASET_ROOT")
@@ -36,6 +45,7 @@ def evaluate(program_path: str) -> EvaluationResult:
             instrument_id,
             timeout_seconds=int(os.environ.get("EVOLUTION_SANDBOX_TIMEOUT", "300")),
             image=os.environ.get("EVOLUTION_SANDBOX_IMAGE", "alpha-evolution-sandbox:0.1"),
+            reference_path=reference_path(),
         )
     if sandbox.error or sandbox.payload is None:
         return _failure(2, sandbox.error or "sandbox failure", validation.complexity)
