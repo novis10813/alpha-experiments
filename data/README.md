@@ -27,13 +27,14 @@ export CATALOG_OUTPUT_S3_BUCKET="nautilus-data"
 ```
 
 請使用只允許讀取 `nautilus-data` 的專用 credential。部署主機上的 reader
-credential 由 `/opt/docker/secrets/minio.env` 管理；不要使用 builder 或 archiver
-的寫入 credential。
+credential 由 homestack 的運維設定管理；請以
+[`nautilus-catalog-builder` 運維文件](/opt/docker/docs/homestack/nautilus-catalog-builder.md)
+為準，不要猜測或複製 credential，也不要使用 builder 或 archiver 的寫入 credential。
 
 ## 安裝相依套件
 
 ```bash
-uv add nautilus-trader s3fs
+uv sync
 ```
 
 ## 在其他程式 import

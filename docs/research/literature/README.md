@@ -8,8 +8,7 @@ hierarchy and does not replace factor notes or experiment reports.
 
 - [`registry.json`](registry.json) is the machine-readable index.
 - [`papers/`](papers/) contains one note for each verified paper.
-- [`../../templates/literature-note-template.md`](../templates/literature-note-template.md)
-is the note template.
+- [Literature note template](../templates/literature-note-template.md) is the note template.
 
 ## Schema
 

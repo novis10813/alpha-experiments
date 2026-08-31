@@ -41,7 +41,8 @@ schema version, source bounds, row/gap counts, and file hashes.
 Build the sandbox image, then run a 30-iteration smoke:
 
 ```bash
-docker build -f evolution/docker/Dockerfile -t alpha-evolution-sandbox:0.1 .
+docker build -f evolution/docker/Dockerfile -t alpha-evolution-sandbox:0.2 .
+export EVOLUTION_SANDBOX_IMAGE=alpha-evolution-sandbox:0.2
 export OPENROUTER_API_KEY="<set outside the repository>"
 uv run python -m evolution evolve --instrument-id BTCUSDT.BINANCE --run-id smoke-001 --iterations 30
 ```

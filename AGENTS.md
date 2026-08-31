@@ -1,141 +1,90 @@
-# AGENTS.md
+# Collaboration Instructions
 
-## Project context
+Read this root `AGENTS.md` first. Then read the nearest `AGENTS.md` for the file
+or directory you will change; when instructions conflict, the closer file wins.
+There are no child `AGENTS.md` files in the current tree.
 
-This repository is for local alpha experiments built on Nautilus Trader. Code should
-prefer Nautilus Trader objects and APIs instead of ad hoc market-data structures.
+## Repository Scope
 
-Current experiment code lives under:
+This repository contains local, hypothesis-based alpha research built on Nautilus
+Trader. It produces narrow alpha rows, diagnostics, reports, and bounded
+OpenEvolve research experiments. The [repository guide](docs/repository-guide.md)
+is the canonical map and records the project's non-purpose, directory roles, data
+boundaries, and operating commands.
 
-- `experiments/` for strategies and runnable backtests.
-- `data/` for catalog loading helpers.
-- `tests/` for unit tests.
+## Configuration and File Placement
 
-Use `uv` for Python commands. The project targets Python `>=3.13` and depends on
-`nautilus-trader` and `s3fs`.
+- Read [the repository guide](docs/repository-guide.md) for the overall layout and
+  local-artifact boundaries.
+- Read [`data/README.md`](data/README.md) before catalog-backed work. Put catalog
+  connection settings in the shell or an untracked `.env`; keep catalog reads
+  read-only and use Nautilus data objects.
+- Read [`docs/alpha-signal-format.md`](docs/alpha-signal-format.md) before adding
+  alpha output. Put canonical alpha logic in `alphas/`; keep diagnostics and
+  derived measures in `reports/` or research notes.
+- Read [`docs/research/current-focus.md`](docs/research/current-focus.md) and the
+  [research framework](docs/research/research-framework.md) before new factor
+  work. Put durable findings under `docs/research/`; put generated artifacts
+  under `outputs/`.
+- Read the [evolution guide](docs/research/openevolve-strategy-evolution.md) and
+  [promotion protocol](docs/research/promotion-protocol.md) before evolution
+  work. Keep datasets, checkpoints, governance ledgers, and runtime material in
+  local paths such as `.local/` and `outputs/`; verify ignore coverage before
+  creating a new artifact path.
+- Keep dependency declarations in `pyproject.toml` and the lockfile in `uv.lock`.
+  Keep Docker sandbox instructions and implementation under `evolution/docker/`.
 
-## Nautilus catalog data
+## Instruction Index
 
-Market data comes from the homestack `nautilus-catalog-builder` setup under
-`/opt/docker/`.
+### Existing child instructions
 
-The main local reference is:
+None. Do not infer child policy from generated or runtime directories.
 
-- `/opt/docker/docs/homestack/nautilus-catalog-builder.md`
+### Candidate future locations
 
-Related deployment files are:
+If one of these directories becomes complex enough to need local rules, add an
+`AGENTS.md` there and update this nearest-ancestor index:
 
-- `/opt/docker/compose/homestack/nautilus-catalog-builder.yml`
-- `/opt/docker/secrets/nautilus-catalog-builder.env`
-- `/opt/docker/site/homestack/nautilus-catalog-builder`
+- `evolution/`
+- `reports/`
+- `data/`
+- `research/`
 
-Treat those `/opt/docker/` files as operational context for how the catalog is built
-and published. This repository should read the finished Nautilus Parquet catalog; it
-should not trigger conversion jobs, write to S3, or require joining the homestack
-Docker network unless explicitly requested.
+Apply the same rule to any other directory whose local workflow needs instructions.
 
-Known catalog shape:
+## Working Rules
 
-- S3 bucket: `nautilus-data`
-- Catalog prefix: bucket root
-- Symbols: `BNBUSDT.BINANCE`, `BTCUSDT.BINANCE`, `ETHUSDT.BINANCE`
-- Data types: `trade_tick`, `order_book_depths`
+- Prefer Nautilus Trader APIs and objects over ad hoc market-data structures.
+- Make small, focused changes. Do not perform opportunistic refactors.
+- Preserve unrelated dirty changes; never overwrite work you did not make.
+- Keep secrets, generated outputs, runtime directories, and local credentials out
+  of tracked files.
+- Do not access validation or holdout data before the machine-enforced promotion
+  gates allow it. Do not use validation or holdout results to guide discovery.
+- Preserve timestamp semantics: completed aggregation states become knowable at
+  the interval end, with no lookahead.
+- Keep the canonical alpha row narrow. Put prices, forward returns, costs,
+  thresholds, positions, fills, PnL, and drawdown in diagnostics or backtests.
 
-## Catalog connection rules
+## Verification
 
-Do not commit secrets. Runtime catalog access is configured through environment
-variables or a local untracked `.env`:
-
-- `CATALOG_S3_ENDPOINT`
-- `CATALOG_S3_ACCESS_KEY`
-- `CATALOG_S3_SECRET_KEY`
-- `CATALOG_OUTPUT_S3_BUCKET`
-
-If credentials are needed on the deployment host, inspect
-`/opt/docker/secrets/nautilus-catalog-builder.env`, but never copy secret values into
-tracked files, test fixtures, logs, or examples.
-
-For this MinIO/S3 catalog, preserve the path-style options in
-`data/nautilus_catalog.py`:
-
-- `config_kwargs={"s3": {"addressing_style": "path"}}`
-- `virtual_hosted_style_request=false`
-- `fs_rust_storage_options["endpoint_url"]`
-
-Do not replace the current direct `ParquetDataCatalog(...)` construction with
-`ParquetDataCatalog.from_uri("s3://nautilus-data")`; the local `s3fs` combination has
-been documented as passing an incompatible `host` option in this environment.
-
-## Alpha signal conventions
-
-Use `docs/alpha-signal-format.md` as the canonical reference for alpha signal shape.
-The minimal logical alpha row is:
-
-```text
-ts_event, instrument_id, alpha_name, value
-```
-
-`ts_event` means the event time when the signal is knowable from market data. Do not
-use write time, report generation time, or a timestamp that implies lookahead.
-
-Keep the core alpha signal narrow. Prices, forward returns, z-scores, thresholds,
-trigger flags, positions, fills, PnL, and drawdown belong in diagnostics, reports, or
-backtests unless explicitly requested as part of a derived dataset.
-
-## Research framework
-
-Before starting new research work, read `docs/research/current-focus.md`. Use
-`docs/research/research-framework.md` as the operating model for factor research.
-The repository currently prioritizes hypothesis-based and rule-based alpha
-research: start from an explicit market-structure hypothesis, define observable
-features or rule states, run focused diagnostics, and document whether the
-result is a standalone alpha, feature candidate, filter, execution input, or
-rejected idea.
-
-Do not prematurely frame raw market variables as tradable alphas. Keep the
-distinction clear between raw features, states, rule alphas, diagnostics, and
-backtests. Prediction-oriented modeling can come later after there are clear
-feature candidates, rule alphas, and diagnostic targets worth predicting.
-
-For new factor experiments, prefer using 1 minute kbar states as the primary
-research unit. Define observable bar states such as continuation, reversal,
-large-move exhaustion, volatility expansion, range compression, or streak
-patterns, then use market microstructure inputs such as order book pressure,
-signed trade flow, trade density, spread, and realized volatility as
-confirmation, filters, or regime context. Do not promote a kbar pattern directly
-to a strategy without forward-return diagnostics, event de-overlap, transaction
-cost sensitivity, and clear timestamp semantics.
-
-When building resampled kbar or feature rows, timestamp each row at the end of
-the aggregation interval so the signal is only available after all included
-market data is knowable. Avoid using the timestamp of the last tick inside the
-bucket when that would leak incomplete future bucket information into a signal
-or diagnostic.
-
-## Development commands
-
-Run the test suite with:
+Use `uv` for Python commands. Run the checks relevant to the change, including:
 
 ```bash
+uv sync
 uv run python -m unittest discover -s tests
+uv run python -m evolution --help
+uv run python -m research.literature_registry --validate
+git diff --check
 ```
 
-Run the current SMA crossing backtest with:
+For catalog-backed legacy work, `uv run python -m experiments.ma_crossing` requires
+catalog environment variables and live catalog access. Do not treat it as an
+offline unit-test check. Confirm that only requested documentation files changed
+before reporting completion.
 
-```bash
-uv run python -m experiments.ma_crossing
-```
+## Maintenance
 
-The backtest requires catalog environment variables and actual catalog connectivity.
-Unit tests should avoid real S3/MinIO access unless an integration test is explicitly
-requested.
-
-## Change guidelines
-
-- Keep changes small and focused on the requested experiment or catalog behavior.
-- Match existing Python style: typed functions where useful, simple dataclasses for
-  small config/result objects, and `unittest` for current tests.
-- Prefer adding tests for catalog configuration and strategy helpers before changing
-  behavior.
-- Avoid broad refactors, unrelated formatting churn, or new abstractions unless they
-  remove concrete duplication in the current code.
+Keep this file concise. Link to detailed policy instead of copying it. When a
+child directory becomes complex, create its `AGENTS.md`, add it to the index above,
+and update the nearest ancestor instructions.

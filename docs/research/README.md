@@ -17,15 +17,15 @@ docs/research/
   README.md
   current-focus.md
   research-framework.md
-  factors/
-    <factor_name>.md
-  templates/
-    factor-research-template.md
-  literature/
-    README.md
-    registry.json
-    papers/
+  factors/       factor notes and status decisions
+  families/      evolution hypothesis preregistrations
+  templates/     factor and literature note templates
+  literature/    verified source registry and paper notes
+  *.md           diagnostics, protocols, ledgers, and evolution notes
 ```
+
+The code that supports these notes lives in `reports/`, `data/`, `research/`, and
+`evolution/`. Generated CSV, HTML, and image artifacts stay under `outputs/`.
 
 ## Factor Status
 
@@ -54,9 +54,19 @@ Use one status per factor note:
 - If a result changes because a bug or data issue was found, keep the correction
   explicit in the factor note.
 
-## Current Factors
+## Current Factor Index
 
-| Factor | Status | Summary |
-| --- | --- | --- |
-| [Order Book Imbalance Feature](factors/orderbook_imbalance_feature.md) | `feature_candidate` | Directional short-horizon signal exists, but observed edge is small after fixing sparse price data. |
-| [Down-Streak Pressure](factors/down_streak_pressure.md) | `feature_candidate` | Down-down-down 1m kbar streaks with confirmed sell pressure show conditional downside continuation, but edge weakens after costs and de-overlap. |
+The current notes cover four factor lines. Two remain `feature_candidate`: [Order
+Book Imbalance Feature](factors/orderbook_imbalance_feature.md) is a
+microstructure feature or filter with a small short-horizon effect, and
+[Down-Streak Pressure](factors/down_streak_pressure.md) is an instrument-specific
+BTC filter candidate whose edge weakens after costs and de-overlap. Two remain
+`idea`: [Five Green Streak](factors/five_green_streak.md) and [Order Book
+Imbalance MA Spread](factors/obi_ma_spread.md). Both need stronger confirmation
+or more stable diagnostics before strategy work.
+
+The [family notes](families/) preregister current evolution lineages. The
+[diagnostic and protocol notes](./) record discovery-only harness checks,
+execution parity, cost and delay sensitivity, eligibility, promotion, and the
+local experiment ledger. Use [Current Research Focus](current-focus.md) to
+choose the next line of work rather than treating the index as a promotion list.
