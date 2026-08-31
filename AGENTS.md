@@ -1,8 +1,10 @@
-# Collaboration Instructions
+# AI Collaboration Entry Point
 
-Read this root `AGENTS.md` first. Then read the nearest `AGENTS.md` for the file
-or directory you will change; when instructions conflict, the closer file wins.
-There are no child `AGENTS.md` files in the current tree.
+Read this root `AGENTS.md` first. When work targets a subdirectory, read the
+nearest `AGENTS.md` in that path as well. If instructions conflict, the
+`AGENTS.md` closer to the target file has higher priority. Each layer indexes
+only its own direct child instructions; follow the nearer file rather than
+scanning the whole tree.
 
 ## Repository Scope
 
@@ -26,6 +28,10 @@ boundaries, and operating commands.
   [research framework](docs/research/research-framework.md) before new factor
   work. Put durable findings under `docs/research/`; put generated artifacts
   under `outputs/`.
+- For literature discovery, read
+  [`docs/research/literature/scout-workflow.md`](docs/research/literature/scout-workflow.md).
+  Scout results are provisional until human approval and are not strategy
+  evidence.
 - Read the [evolution guide](docs/research/openevolve-strategy-evolution.md) and
   [promotion protocol](docs/research/promotion-protocol.md) before evolution
   work. Keep datasets, checkpoints, governance ledgers, and runtime material in
@@ -38,7 +44,9 @@ boundaries, and operating commands.
 
 ### Existing child instructions
 
-None. Do not infer child policy from generated or runtime directories.
+- [`research/AGENTS.md`](research/AGENTS.md) — local rules for the literature registry and automated literature scout.
+
+Do not infer child policy from generated or runtime directories.
 
 ### Candidate future locations
 
@@ -48,9 +56,12 @@ If one of these directories becomes complex enough to need local rules, add an
 - `evolution/`
 - `reports/`
 - `data/`
-- `research/`
+- `docs/research/`
 
 Apply the same rule to any other directory whose local workflow needs instructions.
+When a directory becomes complex enough to need an `AGENTS.md`, add it there and
+update the **nearest ancestor** `AGENTS.md` index. Do not make a parent index
+enumerate the entire subtree.
 
 ## Working Rules
 

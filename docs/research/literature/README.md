@@ -36,3 +36,25 @@ uv run python -m research.literature_registry --check-source arxiv:2602.00776
 
 Run `--check-source` before researching a candidate paper. DOI and arXiv forms are
 normalized before lookup.
+
+## Automated literature scout
+
+The literature scout searches Semantic Scholar for relevant papers, uses an LLM
+to evaluate relevance and extract structured hypotheses, and writes candidates
+to [`staging.json`](staging.json) for human review.
+
+```bash
+# Run the full search → filter → extract → stage pipeline
+uv run python -m research.literature_scout search
+
+# Show what is currently staged
+uv run python -m research.literature_scout status
+
+# Approve a staged entry (moves it to registry.json and generates a note)
+uv run python -m research.literature_scout approve <paper_id>
+```
+
+The scout requires `OPENROUTER_API_KEY` in the environment (same as evolution).
+All staged entries have status `provisional` and evidence tier `primary_abstract`.
+Approving an entry sets status to `verified`, validates the entry against the
+full registry schema, and generates a literature note under `papers/`.

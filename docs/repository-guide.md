@@ -26,7 +26,7 @@ assumption-specific.
 | [`evolution/`](../evolution/) | Discovery datasets, candidate evaluation, sandboxing, search families, promotion gates, and split governance. |
 | [`experiments/`](../experiments/) | Runnable experiments and backtests, including the legacy SMA crossing command. |
 | [`reports/`](../reports/) | Focused diagnostic and report builders. Generated report files belong under `outputs/`. |
-| [`research/`](../research/) | Small research-support modules, including the literature registry validator. Durable research decisions belong under [`docs/research/`](research/). |
+| [`research/`](../research/) | Small research-support modules, including the literature registry validator and automated literature scout. Durable research decisions belong under [`docs/research/`](research/). |
 | [`tests/`](../tests/) | `unittest` coverage. Tests should use local fixtures and mocks rather than live catalog or service access. |
 | [`docs/`](./) | Durable repository, alpha, research, roadmap, literature, and evolution documentation. |
 
@@ -43,10 +43,12 @@ local scratch area; its generated contents are not part of the repository map.
   `CATALOG_OUTPUT_S3_BUCKET` in the shell or an untracked local `.env`. Follow
   [`data/README.md`](../data/README.md) and the operational catalog guide; do
   not copy secret values into code, docs, fixtures, logs, or examples.
-- **Evolution runtime configuration:** provide `OPENROUTER_API_KEY` outside the
-  repository when running `evolution evolve` or `resume`. Evolution datasets,
-  governance ledgers, checkpoints, and run scratch data belong under `.local/`
-  or `outputs/`, not in tracked documentation.
+- **Evolution and literature-scout runtime configuration:** provide
+  `OPENROUTER_API_KEY` outside the repository when running `evolution evolve`,
+  `resume`, or `research.literature_scout`. The optional `S2_API_KEY` can reduce
+  Semantic Scholar rate limiting. Evolution datasets, governance ledgers,
+  checkpoints, and run scratch data belong under `.local/` or `outputs/`, not in
+  tracked documentation.
 - **Generated outputs:** write alpha exports, market extracts, reports, and
   evolution summaries under `outputs/`; keep them reproducible from commands in
   durable research notes. `.local/`, `.pi/`, and `.worktrees/` are runtime or
@@ -74,7 +76,9 @@ then use [`docs/research/research-framework.md`](research/research-framework.md)
 and the [factor template](research/templates/factor-research-template.md). The
 [research index](research/README.md) summarizes current factor notes and the
 [literature registry](research/literature/README.md) records verified sources and
-source-grounded hypotheses. Keep the canonical alpha row defined by
+source-grounded hypotheses. The [literature scout workflow](research/literature/scout-workflow.md)
+describes automated paper discovery and its staging/approval boundary. Keep the
+canonical alpha row defined by
 [`docs/alpha-signal-format.md`](alpha-signal-format.md); keep forward returns,
 costs, thresholds, positions, fills, PnL, and drawdown in diagnostics or
 backtests.
