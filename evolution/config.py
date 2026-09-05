@@ -5,6 +5,8 @@ from pathlib import Path
 from typing import Any
 
 from evolution.families import EvolutionFamily
+from evolution.families import composed_prompt_sha256
+from evolution.families import sha256_file
 
 import yaml
 
@@ -80,12 +82,15 @@ def write_run_config(
     random_seed: int | None = None,
     budget_stage: str | None = None,
     advancement_record: Path | None = None,
+    dataset_root: Path | None = None,
 ) -> tuple[Path, Path]:
     from evolution.budget_policy import budget_metadata
     from evolution.budget_policy import validate_budget
 
     selected_stage = validate_budget(iterations, budget_stage, advancement_record)
     run_dir = run_directory(output_root, instrument_id, run_id)
+    if run_dir.exists():
+        raise FileExistsError(f"fresh evolution run already exists: {run_dir}")
     run_dir.mkdir(parents=True, exist_ok=True)
     config = load_base_config()
     seed = config["random_seed"] if random_seed is None else random_seed
@@ -97,17 +102,22 @@ def write_run_config(
         "run_id": run_id,
         **budget_metadata(iterations, seed, selected_stage),
     }
-    existing_metadata_path = run_dir / "run_metadata.json"
-    if not existing_metadata_path.exists():
-        existing_metadata_path = run_dir / "run-metadata.json"
-    if existing_metadata_path.exists():
-        existing_metadata = json.loads(existing_metadata_path.read_text(encoding="utf-8"))
-        for key in ("instrument_id", "run_id"):
-            if key in existing_metadata and existing_metadata[key] != run_metadata[key]:
-                raise ValueError(f"run metadata {key} does not match")
-        for key in ("family_id", "hypothesis", "seed_program_sha256", "composed_prompt_sha256"):
-            if key in existing_metadata:
-                run_metadata[key] = existing_metadata[key]
+    if dataset_root is not None:
+        run_metadata["dataset_root"] = str(dataset_root.resolve())
+        run_metadata["dataset_identity"] = {
+            "root": str(dataset_root.resolve()),
+            "manifests": {
+                f"discovery_{fold}": sha256_file(
+                    dataset_root / f"discovery_{fold}" / instrument_id / "manifest.json"
+                )
+                for fold in range(1, 6)
+            },
+        }
+    if family is not None:
+        run_metadata.update({
+            "family_id": family.family_id,
+            "hypothesis": family.hypothesis,
+        })
     if advancement_record is not None:
         run_metadata["advancement_record"] = str(advancement_record.resolve())
     template_dir = Path(config["prompt"]["template_dir"])
@@ -128,11 +138,18 @@ def write_run_config(
         )
         (template_dir / "fragments.json").write_text(fragments, encoding="utf-8")
     config["prompt"]["template_dir"] = str(template_dir.resolve())
+    seed_program = family.seed_program if family is not None else Path(__file__).with_name("initial_program.py")
+    run_metadata["seed_program_sha256"] = sha256_file(seed_program)
+    run_metadata["composed_prompt_sha256"] = composed_prompt_sha256(
+        (template_dir / "system_message.txt").read_text(encoding="utf-8"),
+        (template_dir / "diff_user.txt").read_text(encoding="utf-8"),
+    )
     config["log_dir"] = str((run_dir / "logs").resolve())
     config["database"]["db_path"] = str((run_dir / "program_database").resolve())
     config["database"]["artifacts_base_path"] = str((run_dir / "artifacts").resolve())
     path = run_dir / "openevolve.yaml"
     path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
+    run_metadata["config_sha256"] = sha256_file(path)
     redacted = redact(config)
     redacted["run_metadata"] = run_metadata
     (run_dir / "config.redacted.json").write_text(
@@ -142,6 +159,30 @@ def write_run_config(
     encoded_metadata = json.dumps(run_metadata, indent=2, sort_keys=True) + "\n"
     (run_dir / "run_metadata.json").write_text(encoded_metadata, encoding="utf-8")
     (run_dir / "run-metadata.json").write_text(encoded_metadata, encoding="utf-8")
+    execution_state = {
+        "schema_version": 1,
+        "run_id": run_id,
+        "instrument_id": instrument_id,
+        "original_target_iterations": iterations,
+        "target_iterations": iterations,
+        "approved_target_iterations": iterations,
+        "budget_stage": selected_stage.value,
+        "advancement_record": (
+            str(advancement_record.resolve()) if advancement_record is not None else None
+        ),
+        "attempts": [{
+            "target_iterations": iterations,
+            "budget_stage": selected_stage.value,
+            "advancement_record": (
+                str(advancement_record.resolve()) if advancement_record is not None else None
+            ),
+            "checkpoint_iteration": 0,
+        }],
+    }
+    (run_dir / "execution-state.json").write_text(
+        json.dumps(execution_state, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
     return path, run_dir
 
 

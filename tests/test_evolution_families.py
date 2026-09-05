@@ -71,14 +71,16 @@ class EvolutionFamilyTests(unittest.TestCase):
         self.assertEqual(result.spec.exit.mode, "any")
         self.assertEqual(result.spec.exit.min_hold_bars, 10)
 
-    @patch("evolution.runner.subprocess.run")
-    def test_family_run_copies_seed_and_writes_hash_metadata(self, run):
+    @patch("evolution.runner._load_dotenv")
+    @patch("evolution.runner.preflight_sandbox")
+    @patch("evolution.runner._run_streaming")
+    def test_family_run_copies_seed_and_writes_hash_metadata(self, run, preflight, dotenv):
         from evolution.families import FAMILY_REGISTRY
         from evolution.runner import run_evolution
 
         family = FAMILY_REGISTRY["trend-flow-confirmation-v1"]
         with tempfile.TemporaryDirectory() as directory, patch.dict(
-            os.environ, {"OPENROUTER_API_KEY": "key"}, clear=False
+            os.environ, {"VLLM_API_KEY": "key"}, clear=False
         ):
             root = Path(directory)
             dataset = root / "data"
@@ -86,7 +88,7 @@ class EvolutionFamilyTests(unittest.TestCase):
                 target = dataset / f"discovery_{fold}" / "BTCUSDT.BINANCE"
                 target.mkdir(parents=True)
                 (target / "manifest.json").write_text("{}")
-            run.return_value = subprocess.CompletedProcess([], 0, "", "")
+            run.return_value = (subprocess.CompletedProcess([], 0, "", ""), "", Path("attempt.log"))
             result = run_evolution(
                 "BTCUSDT.BINANCE", dataset, root / "out", "r1", family=family,
             )
@@ -111,12 +113,14 @@ class EvolutionFamilyTests(unittest.TestCase):
             command = run.call_args.args[0]
             self.assertEqual(Path(command[3]), result.output_directory / "initial_program.py")
 
-    @patch("evolution.runner.subprocess.run")
-    def test_legacy_run_keeps_reference_program_and_prompts(self, run):
+    @patch("evolution.runner._load_dotenv")
+    @patch("evolution.runner.preflight_sandbox")
+    @patch("evolution.runner._run_streaming")
+    def test_legacy_run_keeps_reference_program_and_prompts(self, run, preflight, dotenv):
         from evolution.runner import run_evolution
 
         with tempfile.TemporaryDirectory() as directory, patch.dict(
-            os.environ, {"OPENROUTER_API_KEY": "key"}, clear=False
+            os.environ, {"VLLM_API_KEY": "key"}, clear=False
         ):
             root = Path(directory)
             dataset = root / "data"
@@ -124,7 +128,7 @@ class EvolutionFamilyTests(unittest.TestCase):
                 target = dataset / f"discovery_{fold}" / "BTCUSDT.BINANCE"
                 target.mkdir(parents=True)
                 (target / "manifest.json").write_text("{}")
-            run.return_value = subprocess.CompletedProcess([], 0, "", "")
+            run.return_value = (subprocess.CompletedProcess([], 0, "", ""), "", Path("attempt.log"))
             result = run_evolution("BTCUSDT.BINANCE", dataset, root / "out", "r1")
             self.assertEqual(Path(run.call_args.args[0][3]), Path("evolution/initial_program.py").resolve())
             metadata = json.loads((result.output_directory / "run_metadata.json").read_text())

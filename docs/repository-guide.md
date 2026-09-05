@@ -43,9 +43,14 @@ local scratch area; its generated contents are not part of the repository map.
   `CATALOG_OUTPUT_S3_BUCKET` in the shell or an untracked local `.env`. Follow
   [`data/README.md`](../data/README.md) and the operational catalog guide; do
   not copy secret values into code, docs, fixtures, logs, or examples.
-- **Evolution and literature-scout runtime configuration:** provide
-  `OPENROUTER_API_KEY` outside the repository when running `evolution evolve`,
-  `resume`, or `research.literature_scout`. The optional `S2_API_KEY` can reduce
+- **Evolution runtime configuration:** `evolve` and `resume` use the self-hosted
+  idlab vLLM endpoint and `qwen3.8-27b` configured in `evolution/configs/base.yaml`.
+  Set `VLLM_API_KEY` outside the repository only if the endpoint requires authentication.
+  Evolution does not use OpenRouter. `--iterations` is a total target; resume
+  defaults to the last approved target. New runs never overwrite existing run
+  directories; legacy runs without identity snapshots cannot resume safely.
+- **Literature-scout runtime configuration:** provide `OPENROUTER_API_KEY` outside
+  the repository when running `research.literature_scout`. The optional `S2_API_KEY` can reduce
   Semantic Scholar rate limiting. Evolution datasets, governance ledgers,
   checkpoints, and run scratch data belong under `.local/` or `outputs/`, not in
   tracked documentation.
@@ -131,6 +136,8 @@ EVOLUTION_SANDBOX_IMAGE=alpha-evolution-sandbox:0.2 \
 ```
 
 The image build uses `uv sync --frozen --no-dev` and copies only the runtime
-packages needed by the sandbox. A full evolution run additionally needs prepared
-local discovery data and `OPENROUTER_API_KEY`; follow the detailed evolution
-documentation before running it.
+packages needed by the sandbox. A full evolution run additionally needs schema-v2 discovery data and access to
+idlab vLLM. Use `--dataset-root .local/evolution-data-v2` for the existing v2
+catalogs; do not relabel v1 manifests to pass preflight. Follow the detailed
+evolution documentation for research gates. Its older OpenRouter and automatic
+300-iteration resume instructions no longer describe the runner.

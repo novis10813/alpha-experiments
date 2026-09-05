@@ -44,7 +44,10 @@ def parse_args() -> argparse.Namespace:
         run.add_argument("--output-root", type=Path, default=Path("outputs/evolution"))
         run.add_argument("--run-id", required=True)
         run.add_argument("--family-id", choices=tuple(FAMILY_REGISTRY))
-        run.add_argument("--iterations", type=int, default=30 if name == "evolve" else 300)
+        run.add_argument(
+            "--iterations", type=int, default=30 if name == "evolve" else None,
+            help="Total iteration target; resume defaults to the last approved target.",
+        )
         run.add_argument("--seed", "--random-seed", dest="random_seed", type=int, default=None)
         run.add_argument("--budget-stage", choices=("lifecycle", "search_smoke", "viability", "extended"))
         run.add_argument("--advancement-record", type=Path)
@@ -173,7 +176,9 @@ def main() -> None:
         budget_stage=getattr(args, "budget_stage", None),
         advancement_record=getattr(args, "advancement_record", None),
     )
-    print(f"OpenEvolve exit code: {result.returncode}")
+    print(f"Workflow status: {result.returncode}")
+    if result.process_returncode is not None:
+        print(f"OpenEvolve process exit code: {result.process_returncode}")
     print(f"Output: {result.output_directory}")
     if result.resume_command:
         print(f"Resume: {result.resume_command}")

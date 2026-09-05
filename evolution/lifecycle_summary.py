@@ -19,6 +19,8 @@ CATEGORIES = (
     "provider_http_error",
     "evaluator_candidate_rejection",
     "unclassified_failure",
+    "unknown_candidate",
+    "infrastructure_error",
 )
 _ITERATION_ERROR = re.compile(r"Iteration (\d+) error: (.*)")
 _ITERATION_COMPLETED = re.compile(
@@ -115,11 +117,16 @@ def _classify_events(logs: list[str], programs: dict[str, dict[str, Any]]) -> li
                     if _is_rejected_program(payload)
                     else "accepted_candidate"
                 )
+                if "combined_score" not in payload.get("metrics", {}):
+                    category = "unknown_candidate"
+                if payload.get("metrics", {}).get("infrastructure_error"):
+                    category = "infrastructure_error"
                 events[iteration] = {
                     "iteration": iteration,
                     "category": category,
                     "program_id": program_id,
                 }
+                recent_provider_signal = None
                 continue
 
             failed = _ITERATION_ERROR.search(line)
@@ -138,6 +145,8 @@ def _classify_events(logs: list[str], programs: dict[str, dict[str, Any]]) -> li
 
 def _failure_category(message: str, recent_provider_signal: str | None) -> str:
     lowered = message.lower()
+    if "infrastructure_error" in lowered:
+        return "infrastructure_error"
     if "no valid diff" in lowered or "diff" in lowered and "parse" in lowered:
         return "diff_parse_failure"
     if "timeout" in lowered or not message.strip() and recent_provider_signal == "provider_timeout":
@@ -193,7 +202,11 @@ def _source_uniqueness(run_directory: Path) -> dict[str, Any]:
                     pass
 
     checkpoints = run_directory / "checkpoints"
-    checkpoint_dirs = sorted(checkpoints.glob("checkpoint_*") if checkpoints.is_dir() else ())
+    checkpoint_dirs = sorted(
+        (path for path in checkpoints.glob("checkpoint_*")
+         if path.is_dir() and path.name.removeprefix("checkpoint_").isdigit()),
+        key=lambda path: int(path.name.removeprefix("checkpoint_")),
+    )
     if checkpoint_dirs:
         for path in (checkpoint_dirs[-1] / "programs").glob("*.json"):
             try:

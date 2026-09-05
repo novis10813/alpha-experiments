@@ -8,7 +8,26 @@ from pathlib import Path
 from uuid import uuid4
 
 
-DEFAULT_IMAGE = "alpha-evolution-sandbox:0.1"
+DEFAULT_IMAGE = "alpha-evolution-sandbox:0.2"
+
+
+def preflight_sandbox(dataset_root: Path, instrument_id: str, image: str) -> None:
+    """Fail before model requests; inspect only the five discovery splits."""
+    from evolution.dataset import verify_manifest
+
+    for fold in range(1, 6):
+        split = f"discovery_{fold}"
+        try:
+            verify_manifest(dataset_root / split / instrument_id / "manifest.json", instrument_id, split)
+        except (OSError, ValueError, TypeError) as exc:
+            raise RuntimeError(f"Discovery preflight failed for {split}: {exc}") from exc
+    for command in (["docker", "info"], ["docker", "image", "inspect", image]):
+        try:
+            result = subprocess.run(command, capture_output=True, text=True, timeout=30)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise RuntimeError(f"Sandbox preflight failed: {command[:3]}") from exc
+        if result.returncode:
+            raise RuntimeError(f"Sandbox preflight failed: {command[:3]}: {_bounded(result.stderr)}")
 
 
 @dataclass(frozen=True)
@@ -67,8 +86,13 @@ def run_sandbox(
     try:
         completed = subprocess.run(command, capture_output=True, text=True, timeout=timeout_seconds)
     except subprocess.TimeoutExpired:
-        subprocess.run(["docker", "rm", "-f", name], capture_output=True, timeout=15)
+        try:
+            subprocess.run(["docker", "rm", "-f", name], capture_output=True, timeout=15)
+        except (OSError, subprocess.TimeoutExpired):
+            pass
         return SandboxResult(124, None, "sandbox timeout")
+    except OSError as exc:
+        return SandboxResult(127, None, _bounded(str(exc)))
     if completed.returncode != 0:
         message = _bounded(completed.stderr.strip() or "sandbox exited non-zero")
         if completed.returncode in (137, 143):

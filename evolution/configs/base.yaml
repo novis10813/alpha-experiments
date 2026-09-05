@@ -4,13 +4,13 @@ random_seed: 20260829
 diff_based_evolution: true
 max_code_length: 12000
 llm:
-  api_base: https://openrouter.ai/api/v1
-  api_key: ${OPENROUTER_API_KEY}
+  api_base: http://100.83.39.100:11432/v1
+  api_key: ${VLLM_API_KEY}
   models:
-    - name: nvidia/nemotron-3-super-120b-a12b:free
-      weight: 0.8
-    - name: nvidia/nemotron-3-ultra-550b-a55b:free
-      weight: 0.2
+    - name: qwen3.8-27b
+      weight: 1.0
+  # OpenEvolve consumes message.content, not vLLM's separate reasoning field.
+  reasoning_effort: none
   temperature: 0.7
   max_tokens: 4096
   timeout: 240

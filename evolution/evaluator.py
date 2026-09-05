@@ -8,6 +8,7 @@ from pathlib import Path
 
 from evolution.candidate import validate_candidate_file
 from evolution.metrics import REJECTED_SCORE
+from evolution.sandbox import DEFAULT_IMAGE
 from evolution.sandbox import run_sandbox
 from openevolve.evaluation_result import EvaluationResult
 
@@ -31,7 +32,7 @@ def evaluate(program_path: str) -> EvaluationResult:
     dataset_root = os.environ.get("EVOLUTION_DATASET_ROOT")
     instrument_id = os.environ.get("EVOLUTION_INSTRUMENT_ID")
     if not dataset_root or not instrument_id:
-        return _failure(1, "trusted evaluator environment is incomplete", validation.complexity)
+        return _failure(1, "trusted evaluator environment is incomplete", validation.complexity, infrastructure=True)
     # OpenEvolve creates candidates as mode 0600 temporary files. The sandbox
     # deliberately runs as an unrelated non-root UID, so give Docker a
     # short-lived, world-readable copy instead of weakening the container user.
@@ -44,11 +45,11 @@ def evaluate(program_path: str) -> EvaluationResult:
             Path(dataset_root),
             instrument_id,
             timeout_seconds=int(os.environ.get("EVOLUTION_SANDBOX_TIMEOUT", "300")),
-            image=os.environ.get("EVOLUTION_SANDBOX_IMAGE", "alpha-evolution-sandbox:0.1"),
+            image=os.environ.get("EVOLUTION_SANDBOX_IMAGE", DEFAULT_IMAGE),
             reference_path=reference_path(),
         )
     if sandbox.error or sandbox.payload is None:
-        return _failure(2, sandbox.error or "sandbox failure", validation.complexity)
+        return _failure(2, sandbox.error or "sandbox failure", validation.complexity, infrastructure=True)
     if not sandbox.payload.get("ok"):
         return _failure(
             int(sandbox.payload.get("stage", 2)),
@@ -65,7 +66,7 @@ def evaluate(program_path: str) -> EvaluationResult:
     return EvaluationResult(metrics=metrics, artifacts={"evaluation.json": artifact})
 
 
-def _failure(stage: int, error: str, complexity: float) -> EvaluationResult:
+def _failure(stage: int, error: str, complexity: float, infrastructure: bool = False) -> EvaluationResult:
     metrics = {
         "combined_score": REJECTED_SCORE,
         "median_return": -1.0,
@@ -78,5 +79,13 @@ def _failure(stage: int, error: str, complexity: float) -> EvaluationResult:
         "active_folds": 0.0,
         "code_complexity": complexity,
     }
-    artifact = json.dumps({"stage": stage, "error": error[:2000]}, sort_keys=True)
+    if infrastructure:
+        # Upstream converts raised evaluator errors to score-less metrics, which
+        # can outrank rejected programs. Keep the safety sentinel, but distinguish
+        # execution failures from candidate fitness in both metrics and artifacts.
+        metrics["infrastructure_error"] = 1.0
+    artifact = json.dumps({
+        "stage": stage, "error": error[:2000],
+        "failure_kind": "infrastructure_error" if infrastructure else "candidate_invalid",
+    }, sort_keys=True)
     return EvaluationResult(metrics=metrics, artifacts={"evaluation.json": artifact})
