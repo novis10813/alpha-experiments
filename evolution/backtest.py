@@ -17,9 +17,14 @@ from evolution.metrics import FoldMetrics
 from evolution.metrics import annualized_sharpe
 from evolution.metrics import max_drawdown
 from evolution.metrics import profit_factor
+from evolution.families import FAMILY_REGISTRY
+from evolution.rules import RuleInterpreterStrategy
+from evolution.rules.validator import validate_rule_dict
 from evolution.signatures import behavior_signature_from_reports
 from evolution.spec import FEE_RATE
+from evolution.spec import LEGACY_EXECUTION_CONTRACT
 from evolution.spec import STARTING_BALANCE_USDT
+from evolution.spec import validate_execution_contract
 from data.orderbook_quotes import QuoteRow
 from nautilus_trader.backtest.engine import BacktestEngine
 from nautilus_trader.backtest.engine import BacktestEngineConfig
@@ -40,6 +45,14 @@ from nautilus_trader.model.objects import Price
 from nautilus_trader.model.objects import Quantity
 
 
+TRUSTED_EXECUTION_FAILURE_EVENTS = frozenset({
+    "max_hold_close_partial",
+    "max_hold_close_rejected",
+    "max_hold_close_canceled",
+    "trusted_unclosed_position",
+})
+
+
 @dataclass(frozen=True)
 class BacktestResult:
     metrics: FoldMetrics
@@ -47,6 +60,8 @@ class BacktestResult:
     position_count: int
     diagnostics: DiagnosticMetrics
     behavior_signature: str
+    execution_contract: str = LEGACY_EXECUTION_CONTRACT
+    execution_events: tuple[dict[str, object], ...] = ()
 
 
 def run_candidate(
@@ -57,10 +72,15 @@ def run_candidate(
     quotes: list[QuoteRow] | None = None,
     bars: list[Bar] | None = None,
     fee_rate: float = FEE_RATE,
+    execution_contract: str = LEGACY_EXECUTION_CONTRACT,
 ) -> BacktestResult:
     if not states:
         raise ValueError("states cannot be empty")
-    module = _load_candidate(Path(program_path))
+    validate_execution_contract(execution_contract)
+    candidate_path = Path(program_path)
+    module = _load_candidate(candidate_path)
+    if execution_contract != LEGACY_EXECUTION_CONTRACT:
+        _require_trusted_candidate(module, candidate_path)
     parsed_id = InstrumentId.from_str(instrument_id)
     data_type = DataType(EvolutionMarketState, metadata={"instrument_id": parsed_id})
     engine = BacktestEngine(BacktestEngineConfig(logging=LoggingConfig(bypass_logging=True)))
@@ -81,8 +101,10 @@ def run_candidate(
             instrument_id=parsed_id,
             bar_type=build_bar_type(parsed_id),
             state_data_type=data_type,
+            execution_contract=execution_contract,
         )
-        engine.add_strategy(module.EvolvedStrategy(config))
+        strategy = module.EvolvedStrategy(config)
+        engine.add_strategy(strategy)
         quote_ticks = (
             [_quote_tick(row, instrument) for row in quotes]
             if quotes is not None
@@ -134,10 +156,47 @@ def run_candidate(
             rejected=rejected,
             error="order rejection" if rejected else None,
         )
+        if execution_contract != LEGACY_EXECUTION_CONTRACT and not strategy.portfolio.is_flat(parsed_id):
+            strategy.execution_events.append({"event": "trusted_unclosed_position"})
         behavior = behavior_signature_from_reports(positions, fills, orders_report)
-        return BacktestResult(metrics, len(fills), len(positions), diagnostics, behavior)
+        return BacktestResult(
+            metrics,
+            len(fills),
+            len(positions),
+            diagnostics,
+            behavior,
+            execution_contract,
+            tuple(getattr(strategy, "execution_events", ())),
+        )
     finally:
         engine.dispose()
+
+
+def execution_events_valid(
+    execution_contract: str,
+    events: tuple[dict[str, object], ...] | list[dict[str, object]],
+) -> bool:
+    return execution_contract == LEGACY_EXECUTION_CONTRACT or not any(
+        event.get("event") in TRUSTED_EXECUTION_FAILURE_EVENTS for event in events
+    )
+
+
+def _require_trusted_candidate(module: ModuleType, path: Path) -> None:
+    strategy_type = getattr(module, "EvolvedStrategy", None)
+    if not isinstance(strategy_type, type) or not issubclass(strategy_type, RuleInterpreterStrategy):
+        raise ValueError(
+            f"trusted execution contract requires a declarative RuleInterpreterStrategy candidate: {path}",
+        )
+    allowed = {"__module__", "__doc__", "RULE_SPEC", "__firstlineno__", "__static_attributes__"}
+    overridden = set(strategy_type.__dict__) - allowed
+    if overridden:
+        raise ValueError(
+            "trusted declarative candidate may not override strategy runtime methods: "
+            + ", ".join(sorted(overridden)),
+        )
+    result = validate_rule_dict(getattr(strategy_type, "RULE_SPEC", None))
+    if not result.valid or result.spec is None or result.spec.family_id not in FAMILY_REGISTRY:
+        raise ValueError(f"trusted candidate is not a registered declarative family: {path}")
 
 
 def _load_candidate(path: Path) -> ModuleType:

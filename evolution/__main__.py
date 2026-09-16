@@ -3,9 +3,14 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from evolution.coverage import run_discovery_coverage_diagnostic
+from evolution.coverage import run_supplemental_coverage_audit
 from evolution.dataset import build_executable_discovery_from_fast
 from evolution.dataset import build_window_from_catalog
 from evolution.diagnostic import run_discovery_diagnostic
+from evolution.supplemental import build_supplemental_discovery
+from evolution.supplemental import parse_utc_day
+from evolution.signal_diagnostic import run_supplemental_signal_diagnostic
 from evolution.eligibility import audit_checkpoint_eligibility
 from evolution.families import FAMILY_REGISTRY
 from evolution.lifecycle_summary import summarize_lifecycle
@@ -16,6 +21,7 @@ from evolution.sensitivity import run_sensitivity
 from evolution.spec import ALL_WINDOWS
 from evolution.spec import DISCOVERY_FOLDS
 from evolution.spec import INSTRUMENT_IDS
+from evolution.spec import SUPPORTED_EXECUTION_CONTRACTS
 from evolution.spec import run_directory
 from evolution.validator import promote_top_candidates
 
@@ -26,6 +32,14 @@ def parse_args() -> argparse.Namespace:
     build = subparsers.add_parser("build-data", help="Build local split-specific datasets from the read-only catalog.")
     build.add_argument("--instrument-id", choices=INSTRUMENT_IDS, required=True)
     build.add_argument("--dataset-root", type=Path, default=Path(".local/evolution-data"))
+    supplemental = subparsers.add_parser(
+        "build-supplemental-discovery",
+        help="Build one isolated executable-profile discovery supplement from the read-only catalog.",
+    )
+    supplemental.add_argument("--instrument-id", choices=INSTRUMENT_IDS, required=True)
+    supplemental.add_argument("--start", required=True, help="UTC day start, e.g. 2026-08-29")
+    supplemental.add_argument("--end", required=True, help="exclusive UTC day end, e.g. 2026-08-30")
+    supplemental.add_argument("--output-root", type=Path, required=True)
     executable = subparsers.add_parser(
         "build-executable-discovery",
         help="Build one-second quote datasets for discovery folds only.",
@@ -51,6 +65,7 @@ def parse_args() -> argparse.Namespace:
         run.add_argument("--seed", "--random-seed", dest="random_seed", type=int, default=None)
         run.add_argument("--budget-stage", choices=("lifecycle", "search_smoke", "viability", "extended"))
         run.add_argument("--advancement-record", type=Path)
+        run.add_argument("--execution-contract", choices=tuple(SUPPORTED_EXECUTION_CONTRACTS))
         if name == "resume":
             run.add_argument("--checkpoint", type=Path, required=True)
     diagnose = subparsers.add_parser("diagnose", help="Run fixed baselines on discovery folds only.")
@@ -58,6 +73,38 @@ def parse_args() -> argparse.Namespace:
     diagnose.add_argument("--dataset-root", type=Path, default=Path(".local/evolution-data"))
     diagnose.add_argument("--output-root", type=Path, default=Path("outputs/evolution-diagnostics"))
     diagnose.add_argument("--run-id", required=True)
+    coverage = subparsers.add_parser(
+        "coverage",
+        help="Report offline coverage for discovery folds only.",
+    )
+    coverage.add_argument("--instrument-id", choices=INSTRUMENT_IDS, required=True)
+    coverage.add_argument("--dataset-root", type=Path, default=Path(".local/evolution-data"))
+    coverage.add_argument(
+        "--output",
+        type=Path,
+        default=Path("outputs/evolution-diagnostics/discovery-coverage.json"),
+    )
+    supplemental_audit = subparsers.add_parser(
+        "audit-supplemental-discovery",
+        help="Audit one existing executable-profile supplemental discovery split.",
+    )
+    supplemental_audit.add_argument("--instrument-id", choices=INSTRUMENT_IDS, required=True)
+    supplemental_audit.add_argument("--split", required=True, help="existing supplemental split name")
+    supplemental_audit.add_argument("--start", required=True, help="UTC day start, e.g. 2026-08-29")
+    supplemental_audit.add_argument("--end", required=True, help="exclusive UTC day end, e.g. 2026-08-30")
+    supplemental_audit.add_argument("--dataset-root", type=Path, required=True)
+    supplemental_audit.add_argument("--output", type=Path, required=True)
+    signal_diagnostic = subparsers.add_parser(
+        "signal-diagnostic",
+        help="Run the fixed-horizon registered-family entry diagnostic on a supplemental split.",
+    )
+    signal_diagnostic.add_argument("--instrument-id", choices=INSTRUMENT_IDS, required=True)
+    signal_diagnostic.add_argument("--family-id", choices=tuple(FAMILY_REGISTRY), required=True)
+    signal_diagnostic.add_argument("--split", required=True, help="existing supplemental split name")
+    signal_diagnostic.add_argument("--start", required=True, help="UTC day start, e.g. 2026-08-29")
+    signal_diagnostic.add_argument("--end", required=True, help="exclusive UTC day end, e.g. 2026-08-30")
+    signal_diagnostic.add_argument("--root", type=Path, required=True, help="supplemental dataset root")
+    signal_diagnostic.add_argument("--output", type=Path, required=True)
     rerank = subparsers.add_parser("rerank", help="Rerank top candidates with executable discovery quotes.")
     rerank.add_argument("--instrument-id", choices=INSTRUMENT_IDS, required=True)
     rerank.add_argument("--dataset-root", type=Path, default=Path(".local/evolution-data"))
@@ -101,6 +148,17 @@ def main() -> None:
             manifest = build_window_from_catalog(args.instrument_id, window, args.dataset_root)
             print(f"{window.name}: {manifest.row_count} states")
         return
+    if args.command == "build-supplemental-discovery":
+        start = parse_utc_day(args.start, "--start")
+        end = parse_utc_day(args.end, "--end")
+        manifest = build_supplemental_discovery(
+            args.instrument_id,
+            start,
+            end,
+            args.output_root,
+        )
+        print(f"{manifest.split}: {manifest.row_count} states")
+        return
     if args.command == "lifecycle-summary":
         output = summarize_lifecycle(args.run_directory)
         print(__import__("json").dumps(output, indent=2, sort_keys=True))
@@ -127,6 +185,37 @@ def main() -> None:
         output = run_directory(args.output_root, args.instrument_id, args.run_id) / "diagnostic.json"
         run_discovery_diagnostic(args.instrument_id, args.dataset_root, output)
         print(f"Diagnostic: {output}")
+        return
+    if args.command == "coverage":
+        run_discovery_coverage_diagnostic(args.instrument_id, args.dataset_root, args.output)
+        print(f"Coverage: {args.output}")
+        return
+    if args.command == "audit-supplemental-discovery":
+        start = parse_utc_day(args.start, "--start")
+        end = parse_utc_day(args.end, "--end")
+        run_supplemental_coverage_audit(
+            args.instrument_id,
+            args.split,
+            start,
+            end,
+            args.dataset_root,
+            args.output,
+        )
+        print(f"Supplemental audit: {args.output}")
+        return
+    if args.command == "signal-diagnostic":
+        start = parse_utc_day(args.start, "--start")
+        end = parse_utc_day(args.end, "--end")
+        run_supplemental_signal_diagnostic(
+            args.instrument_id,
+            args.family_id,
+            args.split,
+            start,
+            end,
+            args.root,
+            args.output,
+        )
+        print(f"Signal diagnostic: {args.output}")
         return
     if args.command == "rerank":
         run_dir = run_directory(args.output_root, args.instrument_id, args.run_id)
@@ -175,6 +264,7 @@ def main() -> None:
         random_seed=getattr(args, "random_seed", None),
         budget_stage=getattr(args, "budget_stage", None),
         advancement_record=getattr(args, "advancement_record", None),
+        execution_contract=getattr(args, "execution_contract", None),
     )
     print(f"Workflow status: {result.returncode}")
     if result.process_returncode is not None:

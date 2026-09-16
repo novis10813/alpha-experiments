@@ -9,6 +9,8 @@ from evolution.diagnostic import _candidate_payload
 from evolution.diagnostic import discovery_split
 from evolution.sandbox_worker import load_split
 from evolution.spec import DISCOVERY_FOLDS
+from evolution.spec import LEGACY_EXECUTION_CONTRACT
+from evolution.spec import TRUSTED_INTRADAY_EXECUTION_CONTRACT
 from evolution.signatures import behavior_signature_from_payload
 from evolution.signatures import source_signature
 
@@ -24,6 +26,11 @@ def rerank_discovery_candidates(
 ) -> dict[str, object]:
     if top_n <= 0:
         raise ValueError("top_n must be positive")
+    from evolution.run_context import run_validation_context
+
+    execution_contract = run_validation_context(run_directory).execution_contract
+    if include_baselines and execution_contract == TRUSTED_INTRADAY_EXECUTION_CONTRACT:
+        raise ValueError("trusted rerank cannot include legacy baselines")
     candidates = _load_candidates(run_directory, top_n)
     if include_baselines:
         candidates = [
@@ -37,14 +44,28 @@ def rerank_discovery_candidates(
     for candidate in candidates:
         program_path = Path(str(candidate["program_path"]))
         is_evolved_candidate = candidate["fast_rank"] is not None
-        fast = _evaluate(program_path, instrument_id, fast_data, run_directory if is_evolved_candidate else None)
-        executable = _evaluate(program_path, instrument_id, executable_data, run_directory if is_evolved_candidate else None)
-        repeated = _evaluate(program_path, instrument_id, executable_data, run_directory if is_evolved_candidate else None)
+        candidate_contract = execution_contract if is_evolved_candidate else LEGACY_EXECUTION_CONTRACT
+        fast = _evaluate(
+            program_path, instrument_id, fast_data,
+            run_directory if is_evolved_candidate else None,
+            candidate_contract,
+        )
+        executable = _evaluate(
+            program_path, instrument_id, executable_data,
+            run_directory if is_evolved_candidate else None,
+            candidate_contract,
+        )
+        repeated = _evaluate(
+            program_path, instrument_id, executable_data,
+            run_directory if is_evolved_candidate else None,
+            candidate_contract,
+        )
         deterministic = executable == repeated
         if not deterministic:
             raise RuntimeError(f"non-deterministic executable rerun: {candidate['candidate_id']}")
         results.append({
             **candidate,
+            "execution_contract": candidate_contract,
             "source_signature": source_signature(program_path.read_text(encoding="utf-8")),
             "behavior_signature": behavior_signature_from_payload(executable),
             "fast": fast,
@@ -98,6 +119,7 @@ def _evaluate(
     instrument_id: str,
     data,
     run_directory: Path | None = None,
+    execution_contract: str = LEGACY_EXECUTION_CONTRACT,
 ) -> dict[str, object]:
     if run_directory is not None:
         from evolution.run_context import validate_run_candidate
@@ -119,6 +141,7 @@ def _evaluate(
             execution_delay_seconds=delay,
             quotes=quotes,
             bars=bars,
+            execution_contract=execution_contract,
         ))
     return _candidate_payload(folds)
 

@@ -62,9 +62,14 @@ separate: it considers every checkpoint program that passed evaluation, not only
 single parent archive slot.
 
 The OpenRouter ensemble uses `nvidia/nemotron-3-super-120b-a12b:free` at weight 0.8
-and `nvidia/nemotron-3-ultra-550b-a55b:free` at weight 0.2. Free-provider malformed
-diffs and transient provider errors are failed iterations rather than fatal run
-errors; checkpoint/resume is the expected recovery path for longer experiments.
+and `nvidia/nemotron-3-ultra-550b-a55b:free` at weight 0.2. OpenEvolve delegates
+HTTP retries to the OpenAI client, which applies capped exponential backoff with
+jitter and honors a reasonable `Retry-After` response on 429, as well as retrying
+transient 408, 409, 5xx, and transport failures. The configured single outer retry
+is deliberately bounded because OpenEvolve's retry count also configures the client's
+inner retries. Malformed diffs, empty responses, and non-transient provider errors
+remain failed iterations rather than being retried indefinitely; checkpoint/resume is
+the expected recovery path for longer experiments.
 
 ## Promotion rule
 

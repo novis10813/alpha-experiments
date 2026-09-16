@@ -243,7 +243,7 @@ class EvolutionDatasetTests(unittest.TestCase):
             def _window_events(self, start: str, end: str) -> list[int]:
                 start_ns = _datetime_to_ns(utc(start))
                 end_ns = _datetime_to_ns(utc(end))
-                return [start_ns, start_ns + 30_000_000_000, end_ns - 30_000_000_000, end_ns]
+                return [start_ns, start_ns + 30_000_000_000, end_ns - 1_000_000_000, end_ns]
 
             def trade_ticks(self, **kwargs):
                 return [
@@ -258,10 +258,11 @@ class EvolutionDatasetTests(unittest.TestCase):
                 ]
 
         def self_depth(ts: int) -> FakeDepth:
+            bid = Decimal("200.00") if ts == 2 * day_ns else Decimal("99.90")
             return FakeDepth(
                 instrument_id, ts,
-                [FakeLevel(Decimal("99.90"), Decimal("3"))],
-                [FakeLevel(Decimal("100.10"), Decimal("1"))],
+                [FakeLevel(bid, Decimal("3"))],
+                [FakeLevel(bid + Decimal("0.20"), Decimal("1"))],
             )
 
         window = Window(
@@ -298,21 +299,21 @@ class EvolutionDatasetTests(unittest.TestCase):
         hour_ns = 3_600_000_000_000
         first_quote_times = [quote.ts_event for quote in first_quotes]
         second_quote_times = [quote.ts_event for quote in second_quotes]
-        self.assertEqual(first_quote_times, list(range(hour_ns, day_ns, hour_ns)))
-        self.assertEqual(second_quote_times, list(range(day_ns + hour_ns, 2 * day_ns, hour_ns)))
+        self.assertEqual(first_quote_times, list(range(hour_ns, day_ns + 1, hour_ns)))
+        self.assertEqual(second_quote_times, list(range(day_ns + hour_ns, 2 * day_ns + 1, hour_ns)))
 
         for day_index, rows in enumerate(source_chunks):
             day_start = day_index * day_ns
             day_end = day_start + day_ns
-            self.assertTrue(all(day_start <= row.ts_event < day_end for row in rows))
-            self.assertNotIn(day_end, [row.ts_event for row in rows])
+            self.assertTrue(all(day_start < row.ts_event <= day_end for row in rows))
+            self.assertIn(day_end, [row.ts_event for row in rows])
+            self.assertNotIn(200.0, [row.bid for row in rows])
         first_source_times = [row.ts_event for row in source_chunks[0]]
         second_source_times = [row.ts_event for row in source_chunks[1]]
         self.assertIn(2_000_000_000, first_source_times)
-        self.assertIn(day_ns - 29_000_000_000, first_source_times)
-        self.assertIn(day_ns + 2_000_000_000, second_source_times)
-        self.assertNotIn(day_ns, first_source_times)
-        self.assertNotIn(day_ns, second_source_times)
+        self.assertIn(day_ns - 1_000_000_000, first_source_times)
+        self.assertIn(day_ns, first_source_times)
+        self.assertIn(day_ns + 1_000_000_000, second_source_times)
         self.assertEqual(set(first_source_times).intersection(second_source_times), set())
         quote_times = [quote.ts_event for _, quotes in local_chunks for quote in quotes]
         self.assertEqual(sorted(quote_times), first_quote_times + second_quote_times)
@@ -386,6 +387,106 @@ class EvolutionDatasetTests(unittest.TestCase):
 
         self.assertEqual(manifest.quote_count, 2)
         self.assertEqual(len(output_quotes), 2)
+        self.assertEqual([quote.ts_event for quote in output_quotes], [1_000_000_000, 2_000_000_000])
+
+    def test_build_window_resamples_raw_quotes_once_per_profile_and_preserves_causality(self):
+        from evolution.dataset import _datetime_to_ns
+        from evolution.dataset import build_window_from_catalog
+        from evolution.spec import EXECUTABLE_DISCOVERY_PROFILE, FAST_DISCOVERY_PROFILE, Window, utc
+
+        day_ns = 86_400_000_000_000
+        second_ns = 1_000_000_000
+        minute_ns = 60 * second_ns
+        instrument_id = "BTCUSDT.BINANCE"
+
+        class GapCatalog:
+            def _depths(self, start: str) -> list[FakeDepth]:
+                day_start = _datetime_to_ns(utc(start))
+                events = (
+                    (1, "100"),
+                    (61, "101"),
+                    (11 * 3_600 + 59 * 60 + 1, "102"),
+                    (12 * 3_600 + 5 * 60 + 1, "103"),
+                    (86_400, "999"),  # raw event at the exclusive day end
+                )
+                return [self._depth(day_start + offset * second_ns, bid) for offset, bid in events]
+
+            @staticmethod
+            def _depth(ts_event: int, bid: str) -> FakeDepth:
+                bid_value = Decimal(bid)
+                return FakeDepth(
+                    instrument_id,
+                    ts_event,
+                    [FakeLevel(bid_value, Decimal("1"))],
+                    [FakeLevel(bid_value + Decimal("1"), Decimal("1"))],
+                )
+
+            def trade_ticks(self, **kwargs):
+                start = kwargs["start"]
+                day_start = _datetime_to_ns(utc(start))
+                return [FakeTrade(instrument_id, day_start + 2 * second_ns, Decimal("100"), Decimal("1"))]
+
+            def query(self, *args, **kwargs):
+                return self._depths(kwargs["start"])
+
+        for profile in (EXECUTABLE_DISCOVERY_PROFILE, FAST_DISCOVERY_PROFILE):
+            with self.subTest(profile=profile.name):
+                window = Window(
+                    f"discovery_quote_profile_{profile.name}",
+                    utc("1970-01-01T00:00:00Z"),
+                    utc("1970-01-03T00:00:00Z"),
+                    profile.quote_interval_seconds,
+                    profile.execution_delay_seconds,
+                )
+                local_chunks: list[tuple[list[object], list[object]]] = []
+                source_chunks: list[list[object]] = []
+
+                def capture_chunk(catalog, states, quotes, instrument):
+                    if states:
+                        local_chunks.append((states, quotes))
+                    else:
+                        source_chunks.append(quotes)
+
+                with tempfile.TemporaryDirectory() as directory:
+                    with (
+                        patch("evolution.dataset.make_catalog", return_value=GapCatalog()),
+                        patch("evolution.dataset.ParquetDataCatalog", side_effect=[object(), object()]),
+                        patch("evolution.dataset._write_catalog_chunk", side_effect=capture_chunk),
+                    ):
+                        build_window_from_catalog(instrument_id, window, Path(directory), profile=profile)
+
+                self.assertEqual(len(local_chunks), 2)
+                self.assertEqual(len(source_chunks), 2)
+                for day_index, ((states, quotes), source_quotes) in enumerate(zip(local_chunks, source_chunks, strict=True)):
+                    day_start = day_index * day_ns
+                    self.assertNotIn(999.0, [quote.bid for quote in source_quotes + quotes])
+                    self.assertNotIn(day_start, [quote.ts_event for quote in source_quotes + quotes])
+                    self.assertEqual(source_quotes[0].ts_event, day_start + 2 * second_ns)
+                    expected_first_quote = (
+                        day_start + 2 * second_ns
+                        if profile.quote_interval_seconds == 1
+                        else day_start + profile.quote_interval_seconds * second_ns
+                    )
+                    self.assertEqual(quotes[0].ts_event, expected_first_quote)
+                    self.assertNotIn(day_start + second_ns, [quote.ts_event for quote in source_quotes + quotes])
+
+                first_source, second_source = source_chunks
+                first_quotes = local_chunks[0][1]
+                if profile.quote_interval_seconds == 1:
+                    self.assertEqual(first_source, first_quotes)
+                    self.assertEqual(first_source[0].bid, 100.0)
+                    self.assertEqual(first_source[60].bid, 101.0)
+                    self.assertEqual(second_source[0].ts_event, day_ns + 2 * second_ns)
+                else:
+                    quote_by_ts = {quote.ts_event: quote for quote in first_quotes}
+                    self.assertEqual(quote_by_ts[minute_ns].bid, 100.0)
+                    self.assertEqual(quote_by_ts[2 * minute_ns].bid, 101.0)
+                    noon = 12 * 3_600 * second_ns
+                    self.assertEqual(quote_by_ts[noon].bid, 102.0)
+                    self.assertEqual(quote_by_ts[noon + minute_ns].bid, 102.0)
+                    self.assertEqual(quote_by_ts[noon + 5 * minute_ns].bid, 102.0)
+                    self.assertEqual(quote_by_ts[noon + 6 * minute_ns].bid, 103.0)
+                    self.assertEqual(second_source[0].ts_event, day_ns + 2 * second_ns)
 
     def test_executable_builder_rejects_non_discovery_window(self):
         from evolution.dataset import build_executable_discovery_from_fast

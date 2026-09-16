@@ -133,6 +133,31 @@ class EvolutionRunnerTests(unittest.TestCase):
             }))
             self.assertEqual(validate_budget(300, advancement_record=record).value, "extended")
 
+    def test_cli_accepts_trusted_execution_contract(self):
+        from evolution.__main__ import parse_args
+
+        with patch("sys.argv", [
+            "evolution", "evolve", "--instrument-id", "BTCUSDT.BINANCE",
+            "--run-id", "r1", "--execution-contract", "trusted_intraday_v1",
+        ]):
+            args = parse_args()
+        self.assertEqual(args.execution_contract, "trusted_intraday_v1")
+
+    def test_trusted_contract_requires_family(self):
+        from evolution.runner import run_evolution
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            dataset = self._dataset(root)
+            with patch.dict(os.environ, {"VLLM_API_KEY": "test-key"}, clear=False), \
+                    patch("evolution.runner._load_dotenv"), \
+                    patch("evolution.runner.preflight_sandbox"):
+                with self.assertRaisesRegex(ValueError, "requires a registered"):
+                    run_evolution(
+                        "BTCUSDT.BINANCE", dataset, root / "out", "r1",
+                        execution_contract="trusted_intraday_v1",
+                    )
+
     def test_cli_accepts_explicit_seed_and_budget_stage(self):
         from evolution.__main__ import parse_args
 
@@ -144,6 +169,12 @@ class EvolutionRunnerTests(unittest.TestCase):
             args = parse_args()
         self.assertEqual(args.random_seed, 23)
         self.assertEqual(args.budget_stage, "viability")
+
+    def test_timestamp_429_is_not_rate_limited_but_http_429_is(self):
+        from evolution.runner import _contains_rate_limit_signal
+
+        self.assertFalse(_contains_rate_limit_signal("2026-08-30T12:34:56,429 INFO completed"))
+        self.assertTrue(_contains_rate_limit_signal("HTTP/1.1 429 Too Many Requests"))
 
     def test_429_preserves_checkpoint_and_redacts_key(self):
         from evolution.runner import run_evolution

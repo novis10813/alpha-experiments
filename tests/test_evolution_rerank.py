@@ -142,6 +142,20 @@ class EvolutionRerankTests(unittest.TestCase):
         self.assertEqual(stability["spearman"], 0.5)
         self.assertEqual(stability["top_3_overlap"], 3)
 
+    def test_trusted_rerank_rejects_baselines(self):
+        from evolution.rerank import rerank_discovery_candidates
+
+        with tempfile.TemporaryDirectory() as directory:
+            run = Path(directory)
+            (run / "run_metadata.json").write_text(json.dumps({
+                "execution_contract": "trusted_intraday_v1",
+            }))
+            with self.assertRaisesRegex(ValueError, "cannot include legacy baselines"):
+                rerank_discovery_candidates(
+                    "BTCUSDT.BINANCE", Path("fast"), Path("executable"), run,
+                    run / "rerank.json", include_baselines=True,
+                )
+
     def test_profile_loader_rejects_wrong_manifest_before_backtest(self):
         from evolution.rerank import _load_discovery_data
 

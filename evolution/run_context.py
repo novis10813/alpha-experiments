@@ -9,12 +9,15 @@ from pathlib import Path
 from evolution.candidate import ValidationResult
 from evolution.candidate import validate_candidate_file
 from evolution.families import sha256_file
+from evolution.spec import LEGACY_EXECUTION_CONTRACT
+from evolution.spec import validate_execution_contract
 
 
 @dataclass(frozen=True)
 class RunValidationContext:
     reference_path: Path
     expected_family_id: str | None
+    execution_contract: str = LEGACY_EXECUTION_CONTRACT
 
 
 def run_validation_context(run_directory: Path) -> RunValidationContext:
@@ -35,11 +38,14 @@ def run_validation_context(run_directory: Path) -> RunValidationContext:
         return RunValidationContext(
             Path(__file__).with_name("initial_program.py").resolve(),
             None,
+            LEGACY_EXECUTION_CONTRACT,
         )
     if not isinstance(metadata, dict):
         raise ValueError("run metadata must be a mapping")
 
     family_id = metadata.get("family_id") or None
+    execution_contract = str(metadata.get("execution_contract", LEGACY_EXECUTION_CONTRACT))
+    validate_execution_contract(execution_contract)
     if family_id is None:
         reference_path = Path(__file__).with_name("initial_program.py").resolve()
     else:
@@ -49,8 +55,11 @@ def run_validation_context(run_directory: Path) -> RunValidationContext:
         expected_hash = metadata.get("seed_program_sha256")
         if expected_hash and sha256_file(reference_path) != expected_hash:
             raise ValueError("family reference does not match immutable run metadata")
-    return RunValidationContext(reference_path, str(family_id) if family_id is not None else None)
-
+    return RunValidationContext(
+        reference_path,
+        str(family_id) if family_id is not None else None,
+        execution_contract,
+    )
 
 def validate_candidate_in_context(
     context: RunValidationContext,

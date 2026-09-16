@@ -36,6 +36,13 @@ class SandboxResult:
     payload: dict[str, object] | None
     error: str | None
 
+    @property
+    def execution_events(self) -> tuple[object, ...]:
+        if self.payload is None:
+            return ()
+        events = self.payload.get("execution_events", [])
+        return tuple(events) if isinstance(events, list) else ()
+
 
 def docker_command(
     program_path: Path,
@@ -67,6 +74,7 @@ def docker_command(
     command.extend([
         "--env", f"EVOLUTION_INSTRUMENT_ID={instrument_id}",
         "--env", f"EVOLUTION_FAMILY_ID={os.environ.get('EVOLUTION_FAMILY_ID', '')}",
+        "--env", f"EVOLUTION_EXECUTION_CONTRACT={os.environ.get('EVOLUTION_EXECUTION_CONTRACT', 'legacy_v1')}",
         "--env", "EVOLUTION_REFERENCE_PROGRAM=/candidate/reference.py" if reference_path is not None else "EVOLUTION_REFERENCE_PROGRAM=/app/evolution/initial_program.py",
         image,
     ])

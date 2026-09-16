@@ -124,6 +124,16 @@ def _validate_declarative(
         errors.append("candidate must define exactly one EvolvedStrategy class")
     elif not _inherits_rule_interpreter(classes[0]):
         errors.append("declarative EvolvedStrategy must inherit RuleInterpreterStrategy")
+    else:
+        for node in classes[0].body:
+            if not (
+                isinstance(node, ast.Assign)
+                and len(node.targets) == 1
+                and isinstance(node.targets[0], ast.Name)
+                and node.targets[0].id == "RULE_SPEC"
+            ):
+                errors.append("declarative candidate may not override strategy runtime methods or events")
+                break
 
     parsed = validate_rule_source(block)
     if not parsed.valid or parsed.spec is None:

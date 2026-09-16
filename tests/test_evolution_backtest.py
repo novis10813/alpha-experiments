@@ -2,6 +2,29 @@ import unittest
 
 
 class EvolutionBacktestTests(unittest.TestCase):
+    def test_legacy_baseline_is_uncapped_and_trusted_baseline_selection_fails_closed(self):
+        from evolution.backtest import run_candidate
+        from evolution.spec import LEGACY_EXECUTION_CONTRACT, TRUSTED_INTRADAY_EXECUTION_CONTRACT
+        from evolution.market_state import EvolutionMarketState
+
+        states = []
+        for index in range(70):
+            price = 100.0
+            ts_event = (index + 1) * 60_000_000_000
+            states.append(EvolutionMarketState(
+                "BTCUSDT.BINANCE", price, price, price, price, 1, 2, 1, 1,
+                0.5, 0.5, 0, 0, 0, 0, 0, 0, price - 0.1, price + 0.1, 20,
+                ts_event, ts_event + 2,
+            ))
+        legacy = run_candidate("evolution/baselines/buy_and_hold.py", "BTCUSDT.BINANCE", states)
+        self.assertEqual(legacy.execution_contract, LEGACY_EXECUTION_CONTRACT)
+        self.assertEqual(legacy.position_count, 1)
+        with self.assertRaisesRegex(ValueError, "requires a declarative"):
+            run_candidate(
+                "evolution/baselines/buy_and_hold.py", "BTCUSDT.BINANCE", states,
+                execution_contract=TRUSTED_INTRADAY_EXECUTION_CONTRACT,
+            )
+
     def test_synthetic_nautilus_run_fills_ioc_charges_fees_and_forces_close(self):
         from evolution.backtest import run_candidate
         from evolution.market_state import EvolutionMarketState

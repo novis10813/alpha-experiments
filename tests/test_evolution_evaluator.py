@@ -43,6 +43,8 @@ class EvolutionEvaluatorTests(unittest.TestCase):
             result = evaluate("evolution/initial_program.py")
         self.assertEqual(result.metrics["combined_score"], 0.01)
         self.assertGreater(result.metrics["code_complexity"], 0)
+        artifact = result.artifacts["evaluation.json"]
+        self.assertIn('"execution_events":[]', artifact)
 
     @patch("evolution.evaluator.run_sandbox")
     def test_mode_600_openevolve_candidate_is_staged_readable(self, sandbox):

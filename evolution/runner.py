@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shlex
 import shutil
 import signal
@@ -25,7 +26,10 @@ from evolution.lifecycle_summary import _load_programs
 from evolution.lifecycle_summary import summarize_lifecycle
 from evolution.sandbox import DEFAULT_IMAGE
 from evolution.sandbox import preflight_sandbox
+from evolution.spec import LEGACY_EXECUTION_CONTRACT
+from evolution.spec import TRUSTED_INTRADAY_EXECUTION_CONTRACT
 from evolution.spec import run_directory
+from evolution.spec import validate_execution_contract
 from data.nautilus_catalog import _load_dotenv
 
 
@@ -70,7 +74,10 @@ def run_evolution(
     random_seed: int | None = None,
     budget_stage: str | None = None,
     advancement_record: Path | None = None,
+    execution_contract: str | None = None,
 ) -> EvolutionRunResult:
+    if execution_contract is not None:
+        validate_execution_contract(execution_contract)
     if isinstance(family, str):
         family = get_family(family)
     if family is not None:
@@ -83,6 +90,14 @@ def run_evolution(
         raise FileExistsError(f"fresh evolution run already exists: {run_dir}")
 
     existing_metadata = _read_run_metadata(run_dir) if is_resume else None
+    if execution_contract is None:
+        execution_contract = (
+            str(existing_metadata.get("execution_contract", LEGACY_EXECUTION_CONTRACT))
+            if existing_metadata is not None else LEGACY_EXECUTION_CONTRACT
+        )
+    validate_execution_contract(execution_contract)
+    if execution_contract == TRUSTED_INTRADAY_EXECUTION_CONTRACT and family is None:
+        raise ValueError("trusted execution contract requires a registered evolution family")
     execution_state = _read_execution_state(run_dir, instrument_id, run_id) if is_resume else None
     if is_resume and iterations is None:
         if execution_state is None:
@@ -105,7 +120,7 @@ def run_evolution(
 
     if is_resume:
         checkpoint, checkpoint_iteration = _validate_resume_inputs(
-            run_dir, checkpoint, instrument_id, run_id, family, seed, dataset_identity,
+            run_dir, checkpoint, instrument_id, run_id, family, seed, dataset_identity, execution_contract,
         )
         if checkpoint_iteration >= iterations:
             return EvolutionRunResult(0, run_dir, checkpoint, None, False)
@@ -142,6 +157,7 @@ def run_evolution(
             budget_stage=selected_stage,
             advancement_record=advancement_record,
             dataset_root=dataset_root,
+            execution_contract=execution_contract,
         )
         program_path = Path(__file__).parent / "initial_program.py"
         if family is not None:
@@ -162,6 +178,7 @@ def run_evolution(
         "EVOLUTION_SANDBOX_IMAGE": image,
         "EVOLUTION_SANDBOX_TIMEOUT": os.environ.get("EVOLUTION_SANDBOX_TIMEOUT", "300"),
         "EVOLUTION_FAMILY_ID": family.family_id if family is not None else "",
+        "EVOLUTION_EXECUTION_CONTRACT": execution_contract,
         "EVOLUTION_REFERENCE_PROGRAM": str(program_path.resolve()),
     }
     command = evolution_command(config_path, run_dir, upstream_iterations, checkpoint, program_path)
@@ -180,7 +197,7 @@ def run_evolution(
         for event in events
     )
     workflow_returncode = completed.returncode or int(completed_candidates == 0 or terminal_errors)
-    limited = any(marker in output.lower() for marker in ("429", "rate limit", "quota"))
+    limited = _contains_rate_limit_signal(output)
     outcome = {
         "process_returncode": completed.returncode,
         "workflow_returncode": workflow_returncode,
@@ -205,6 +222,7 @@ def run_evolution(
         random_seed=seed,
         family_id=family.family_id if family is not None else None,
         advancement_record=advancement_record,
+        execution_contract=execution_contract,
     ) if latest and iterations > _checkpoint_iteration(latest) else None
     return EvolutionRunResult(
         workflow_returncode,
@@ -252,6 +270,7 @@ def _validate_resume_inputs(
     family: EvolutionFamily | None,
     seed: int,
     dataset_identity: dict[str, object],
+    execution_contract: str,
 ) -> tuple[Path, int]:
     metadata = _read_run_metadata(run_dir)
     checkpoint = checkpoint.resolve()
@@ -281,6 +300,8 @@ def _validate_resume_inputs(
         raise RuntimeError("resume family_id does not match immutable run metadata")
     if metadata.get("dataset_identity") != dataset_identity:
         raise RuntimeError("resume dataset identity does not match immutable run metadata")
+    if metadata.get("execution_contract", LEGACY_EXECUTION_CONTRACT) != execution_contract:
+        raise RuntimeError("resume execution contract does not match immutable run metadata")
     reference = run_dir / "initial_program.py" if family is not None else Path(__file__).parent / "initial_program.py"
     if not reference.is_file() or metadata.get("seed_program_sha256") != sha256_file(reference):
         raise RuntimeError("resume seed program does not match immutable run metadata")
@@ -433,6 +454,7 @@ def resume_command(
     random_seed: int | None = None,
     family_id: str | None = None,
     advancement_record: Path | None = None,
+    execution_contract: str | None = None,
 ) -> str:
     args = [
         "uv", "run", "python", "-m", "evolution", "resume",
@@ -446,6 +468,8 @@ def resume_command(
         args.extend(["--advancement-record", str(advancement_record)])
     if family_id:
         args.extend(["--family-id", family_id])
+    if execution_contract:
+        args.extend(["--execution-contract", execution_contract])
     return " ".join(shlex.quote(arg) for arg in args)
 
 
@@ -517,6 +541,19 @@ def export_top_candidates(checkpoint: Path, run_dir: Path, limit: int = 10) -> P
     index_path = target / "index.json"
     index_path.write_text(json.dumps(index, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return index_path
+
+
+_RATE_LIMIT_PATTERNS = (
+    re.compile(r"\bHTTP(?:/\d(?:\.\d)?)?\s*429\b", re.IGNORECASE),
+    re.compile(r"\b(?:status|status_code|error code|response code|http status)\D{0,8}429\b", re.IGNORECASE),
+    re.compile(r"\b429\b\s*(?:quota|rate[- ]?limit|retry|retries|too many|exhausted)\b", re.IGNORECASE),
+    re.compile(r"\b(?:rate[- ]?limit(?:ed|ing)?|quota(?: exceeded| exhausted)?)\b", re.IGNORECASE),
+)
+
+
+def _contains_rate_limit_signal(value: str) -> bool:
+    """Classify provider rate limiting without treating arbitrary log numbers as 429s."""
+    return any(pattern.search(value) for pattern in _RATE_LIMIT_PATTERNS)
 
 
 def _redact_text(value: str, secret: str) -> str:

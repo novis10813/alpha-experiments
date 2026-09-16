@@ -6,6 +6,7 @@ import shutil
 import tempfile
 from pathlib import Path
 
+from evolution.backtest import TRUSTED_EXECUTION_FAILURE_EVENTS
 from evolution.candidate import validate_candidate_file
 from evolution.metrics import REJECTED_SCORE
 from evolution.sandbox import DEFAULT_IMAGE
@@ -33,6 +34,9 @@ def evaluate(program_path: str) -> EvaluationResult:
     instrument_id = os.environ.get("EVOLUTION_INSTRUMENT_ID")
     if not dataset_root or not instrument_id:
         return _failure(1, "trusted evaluator environment is incomplete", validation.complexity, infrastructure=True)
+    execution_contract = os.environ.get("EVOLUTION_EXECUTION_CONTRACT", "legacy_v1")
+    if execution_contract != "legacy_v1" and not os.environ.get("EVOLUTION_FAMILY_ID"):
+        return _failure(1, "trusted execution contract requires a registered family", validation.complexity)
     # OpenEvolve creates candidates as mode 0600 temporary files. The sandbox
     # deliberately runs as an unrelated non-root UID, so give Docker a
     # short-lived, world-readable copy instead of weakening the container user.
@@ -56,10 +60,21 @@ def evaluate(program_path: str) -> EvaluationResult:
             str(sandbox.payload.get("error", "candidate rejected")),
             validation.complexity,
         )
+    events = sandbox.payload.get("execution_events", [])
+    if execution_contract != "legacy_v1" and any(
+        isinstance(event, dict) and event.get("event") in TRUSTED_EXECUTION_FAILURE_EVENTS
+        for event in events if isinstance(events, list)
+    ):
+        return _failure(2, "trusted execution contract violation", validation.complexity)
     metrics = {key: float(value) for key, value in dict(sandbox.payload["metrics"]).items()}
     metrics["code_complexity"] = validation.complexity
     artifact = json.dumps(
-        {"stage": 3, "summary": metrics},
+        {
+            "stage": 3,
+            "summary": metrics,
+            "execution_contract": execution_contract,
+            "execution_events": events,
+        },
         sort_keys=True,
         separators=(",", ":"),
     )

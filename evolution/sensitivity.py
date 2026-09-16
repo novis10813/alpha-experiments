@@ -10,6 +10,7 @@ from evolution.diagnostic import _candidate_payload
 from evolution.diagnostic import discovery_split
 from evolution.sandbox_worker import load_split
 from evolution.spec import DISCOVERY_FOLDS
+from evolution.spec import LEGACY_EXECUTION_CONTRACT
 
 
 DEFAULT_FEES_BPS = (0, 5, 10, 15)
@@ -31,6 +32,7 @@ def run_sensitivity(
     if not rerank.get("discovery_only"):
         raise ValueError("sensitivity requires a discovery-only rerank")
     champion = rerank["candidates"][0]
+    execution_contract = str(champion.get("execution_contract", LEGACY_EXECUTION_CONTRACT))
     programs = {"executable_champion": _candidate_path(run_directory, champion)}
     if include_baselines:
         programs = {
@@ -61,6 +63,7 @@ def run_sensitivity(
                         quotes=quotes,
                         bars=bars,
                         fee_rate=fee_bps / 10_000,
+                        execution_contract=execution_contract if name == "executable_champion" else LEGACY_EXECUTION_CONTRACT,
                     ))
                 report = _candidate_payload(folds)
                 scenarios.append({
@@ -82,6 +85,7 @@ def run_sensitivity(
         "discovery_only": True,
         "official_profile": {"fee_bps": OFFICIAL_FEE_BPS, "delay_seconds": OFFICIAL_DELAY_SECONDS},
         "candidate_id": champion["candidate_id"],
+        "execution_contract": execution_contract,
         "programs": results,
     }
     output_path.parent.mkdir(parents=True, exist_ok=True)

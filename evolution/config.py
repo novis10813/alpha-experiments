@@ -7,6 +7,8 @@ from typing import Any
 from evolution.families import EvolutionFamily
 from evolution.families import composed_prompt_sha256
 from evolution.families import sha256_file
+from evolution.spec import LEGACY_EXECUTION_CONTRACT
+from evolution.spec import validate_execution_contract
 
 import yaml
 
@@ -83,11 +85,13 @@ def write_run_config(
     budget_stage: str | None = None,
     advancement_record: Path | None = None,
     dataset_root: Path | None = None,
+    execution_contract: str = LEGACY_EXECUTION_CONTRACT,
 ) -> tuple[Path, Path]:
     from evolution.budget_policy import budget_metadata
     from evolution.budget_policy import validate_budget
 
     selected_stage = validate_budget(iterations, budget_stage, advancement_record)
+    validate_execution_contract(execution_contract)
     run_dir = run_directory(output_root, instrument_id, run_id)
     if run_dir.exists():
         raise FileExistsError(f"fresh evolution run already exists: {run_dir}")
@@ -100,6 +104,7 @@ def write_run_config(
         "schema_version": 1,
         "instrument_id": instrument_id,
         "run_id": run_id,
+        "execution_contract": execution_contract,
         **budget_metadata(iterations, seed, selected_stage),
     }
     if dataset_root is not None:

@@ -11,6 +11,7 @@ from evolution.dataset import verify_manifest
 from evolution.metrics import annualized_sharpe
 from evolution.sandbox_worker import load_split
 from evolution.spec import DISCOVERY_FOLDS
+from evolution.spec import LEGACY_EXECUTION_CONTRACT
 from evolution.spec import STARTING_BALANCE_USDT
 from evolution.signatures import behavior_signature
 
@@ -82,6 +83,7 @@ def _candidate_payload(folds: list[BacktestResult]) -> dict[str, object]:
     fold_count = len(folds)
     holding = [value for fold in diagnostics for value in fold.holding_durations_seconds]
     return {
+        "execution_contract": _single_execution_contract(folds),
         "behavior_signature": behavior_signature([fold.behavior_signature for fold in folds]),
         "aggregate": {
             "gross_return": total_gross_pnl / fold_count,
@@ -107,7 +109,16 @@ def _candidate_payload(folds: list[BacktestResult]) -> dict[str, object]:
                 "metrics": asdict(result.metrics),
                 "diagnostics": asdict(result.diagnostics),
                 "behavior_signature": result.behavior_signature,
+                "execution_contract": result.execution_contract,
+                "execution_events": list(result.execution_events),
             }
             for window, result in zip(DISCOVERY_FOLDS, folds, strict=True)
         ],
     }
+
+
+def _single_execution_contract(folds: list[BacktestResult]) -> str:
+    contracts = {fold.execution_contract for fold in folds}
+    if len(contracts) != 1:
+        raise ValueError("candidate folds used mixed execution contracts")
+    return contracts.pop() if contracts else LEGACY_EXECUTION_CONTRACT

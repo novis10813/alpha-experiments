@@ -377,10 +377,10 @@ def build_executable_discovery_from_fast(
 
     quote_catalog = ParquetDataCatalog(quote_source)
     source_quotes = quote_catalog.quote_ticks(instrument_ids=[instrument_id])
-    quote_rows = resample_quote_rows(
-        [_quote_row_from_tick(tick) for tick in source_quotes],
-        profile.quote_interval_seconds,
-    )
+    # The source catalog already contains completed one-second quotes.  Do
+    # not resample them again: that would move every completion one second
+    # later, including the executable one-second profile.
+    quote_rows = [_quote_row_from_tick(tick) for tick in source_quotes]
     local_catalog = ParquetDataCatalog(target)
     _write_catalog_chunk(local_catalog, [], quote_rows, instrument_id)
     files = _catalog_hashes(target)
@@ -421,12 +421,20 @@ def _items_in_half_open_interval(items: Iterable[object], start_ns: int, end_ns:
     ]
 
 
-def build_window_from_catalog(instrument_id: str, window: Window, output_root: Path) -> DatasetManifest:
+def build_window_from_catalog(
+    instrument_id: str,
+    window: Window,
+    output_root: Path,
+    profile: ExecutionProfile | None = None,
+) -> DatasetManifest:
     """Read closed UTC days and write only to a local split-specific dataset."""
-    catalog = make_catalog()
+    profile = profile or ExecutionProfile(
+        "fast", window.quote_interval_seconds, window.execution_delay_seconds,
+    )
     split_dir = output_root / window.name / instrument_id
-    if (split_dir / "data").exists():
+    if split_dir.exists():
         raise RuntimeError(f"local catalog already exists: {split_dir}")
+    catalog = make_catalog()
     split_dir.mkdir(parents=True, exist_ok=True)
     local_catalog = ParquetDataCatalog(split_dir)
     source_quote_catalog = (
@@ -435,6 +443,7 @@ def build_window_from_catalog(instrument_id: str, window: Window, output_root: P
         else None
     )
     row_count = 0
+    quote_count = 0
     first_ts_event: int | None = None
     last_ts_event: int | None = None
     previous_price: float | None = None
@@ -476,16 +485,14 @@ def build_window_from_catalog(instrument_id: str, window: Window, output_root: P
         )
         aggregate_seconds = perf_counter() - stage_started
         stage_started = perf_counter()
-        source_quote_rows = _items_in_half_open_interval(
-            depths_to_quote_rows(depths, resample_seconds=1),
-            day_start_ns,
-            day_end_ns,
+        raw_quote_rows = depths_to_quote_rows(
+            _items_in_half_open_interval(depths, day_start_ns, day_end_ns),
         )
-        day_quotes = _items_in_half_open_interval(
-            resample_quote_rows(source_quote_rows, window.quote_interval_seconds),
-            day_start_ns,
-            day_end_ns,
-        )
+        # Resample independently from raw depth-derived quotes.  The resampler
+        # assigns a completed quote to the interval end, so its day-end output
+        # belongs to this day even though the raw day slice is half-open.
+        source_quote_rows = resample_quote_rows(raw_quote_rows, 1)
+        day_quotes = resample_quote_rows(raw_quote_rows, profile.quote_interval_seconds)
         quote_build_seconds = perf_counter() - stage_started
         stage_started = perf_counter()
         _write_catalog_chunk(local_catalog, day_states, day_quotes, instrument_id)
@@ -517,6 +524,7 @@ def build_window_from_catalog(instrument_id: str, window: Window, output_root: P
             first_ts_event = first_ts_event or day_states[0].ts_event
             last_ts_event = day_states[-1].ts_event
             row_count += len(day_states)
+        quote_count += len(day_quotes)
         day = day_end
     expected = int((window.end - window.start).total_seconds() // 60)
     manifest = DatasetManifest(
@@ -530,9 +538,10 @@ def build_window_from_catalog(instrument_id: str, window: Window, output_root: P
         first_ts_event=first_ts_event,
         last_ts_event=last_ts_event,
         files=dict(sorted(_catalog_hashes(split_dir).items())),
-        execution_profile="fast",
-        quote_interval_seconds=window.quote_interval_seconds,
-        execution_delay_seconds=window.execution_delay_seconds,
+        execution_profile=profile.name,
+        quote_interval_seconds=profile.quote_interval_seconds,
+        execution_delay_seconds=profile.execution_delay_seconds,
+        quote_count=quote_count,
     )
     write_manifest(manifest, split_dir / "manifest.json")
     return manifest

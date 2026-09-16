@@ -21,6 +21,21 @@ class _Portfolio:
         return not self.flat
 
 
+class _TimerClock:
+    def __init__(self) -> None:
+        self.alerts = {}
+
+    @property
+    def timer_names(self):
+        return tuple(self.alerts)
+
+    def set_time_alert_ns(self, name, alert_time_ns, callback):
+        self.alerts[name] = (alert_time_ns, callback)
+
+    def cancel_timer(self, name):
+        self.alerts.pop(name, None)
+
+
 class _RuleHarness(RuleInterpreterStrategy):
     RULE_SPEC = {
         "family_id": "trend-flow-confirmation-v1",
@@ -60,14 +75,26 @@ def _state(return_15m: float, flow: float = 1.0, close: float = 100.0, ts: int =
     )
 
 
-def _harness() -> _RuleHarness:
+class _TimerRuleHarness(_RuleHarness):
+    @property
+    def clock(self):
+        return self._test_clock
+
+
+def _harness(execution_contract: str | None = None, timer: bool = False) -> _RuleHarness:
     instrument_id = InstrumentId.from_str("BTCUSDT.BINANCE")
+    kwargs = {}
+    if execution_contract is not None:
+        kwargs["execution_contract"] = execution_contract
     config = EvolutionStrategyConfig(
         instrument_id=instrument_id,
         bar_type=build_bar_type(instrument_id),
         state_data_type=DataType(EvolutionMarketState, metadata={"instrument_id": instrument_id}),
+        **kwargs,
     )
-    strategy = _RuleHarness(config)
+    strategy = (_TimerRuleHarness if timer else _RuleHarness)(config)
+    if timer:
+        strategy._test_clock = _TimerClock()
     strategy._test_portfolio = _Portfolio()
     strategy.entries = []
     strategy.exits = 0
@@ -75,6 +102,26 @@ def _harness() -> _RuleHarness:
 
 
 class EvolutionRuleStrategyTests(unittest.TestCase):
+    def test_invalid_execution_contract_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "unsupported execution contract"):
+            _RuleHarness(EvolutionStrategyConfig(
+                instrument_id=InstrumentId.from_str("BTCUSDT.BINANCE"),
+                bar_type=build_bar_type(InstrumentId.from_str("BTCUSDT.BINANCE")),
+                state_data_type=DataType(EvolutionMarketState),
+                execution_contract="not-supported",
+            ))
+
+    def test_trusted_timer_uses_fill_timestamp_and_deduplicates_pending_close(self):
+        from evolution.spec import TRUSTED_INTRADAY_EXECUTION_CONTRACT
+
+        strategy = _harness(TRUSTED_INTRADAY_EXECUTION_CONTRACT, timer=True)
+        strategy.portfolio.flat = False
+        strategy._arm_max_hold_timer(1_000_000_000)
+        self.assertEqual(strategy.max_hold_deadline_ns, 3_601_000_000_000)
+        strategy._max_hold_close_pending = True
+        strategy._on_max_hold_deadline(None)
+        self.assertEqual(strategy.execution_events, [])
+
     def test_entry_requires_exact_consecutive_confirmations(self):
         strategy = _harness()
         strategy.on_data(_state(0.0))

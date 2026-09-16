@@ -16,6 +16,23 @@ SCHEMA_VERSION = 2
 STARTING_BALANCE_USDT = 100_000
 POSITION_NOTIONAL_USDT = 10_000
 FEE_RATE = 0.001
+LEGACY_EXECUTION_CONTRACT = "legacy_v1"
+TRUSTED_INTRADAY_EXECUTION_CONTRACT = "trusted_intraday_v1"
+TRUSTED_INTRADAY_MAX_HOLD_SECONDS = 3_600
+SUPPORTED_EXECUTION_CONTRACTS = frozenset({
+    LEGACY_EXECUTION_CONTRACT,
+    TRUSTED_INTRADAY_EXECUTION_CONTRACT,
+})
+
+
+def validate_execution_contract(contract: str) -> str:
+    if contract not in SUPPORTED_EXECUTION_CONTRACTS:
+        raise ValueError(f"unsupported execution contract: {contract!r}")
+    return contract
+
+
+def requires_declarative_family(contract: str) -> bool:
+    return contract == TRUSTED_INTRADAY_EXECUTION_CONTRACT
 
 
 @dataclass(frozen=True)

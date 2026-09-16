@@ -8,6 +8,7 @@ from data.orderbook_quotes import QuoteRow
 from nautilus_trader.model.identifiers import InstrumentId
 from nautilus_trader.persistence.catalog.parquet import ParquetDataCatalog
 
+from evolution.backtest import execution_events_valid
 from evolution.backtest import run_candidate
 from evolution.candidate import validate_candidate_file
 from evolution.dataset import verify_manifest
@@ -33,8 +34,15 @@ def main() -> None:
         print(json.dumps({"ok": False, "stage": 1, "error": "; ".join(validation.errors)}))
         return
     try:
-        run_candidate(PROGRAM_PATH, instrument_id, _synthetic_states(instrument_id))
+        execution_contract = os.environ.get("EVOLUTION_EXECUTION_CONTRACT", "legacy_v1")
+        run_candidate(
+            PROGRAM_PATH,
+            instrument_id,
+            _synthetic_states(instrument_id),
+            execution_contract=execution_contract,
+        )
         folds = []
+        execution_events = []
         for index, window in enumerate(DISCOVERY_FOLDS):
             states, quotes, bars = load_split(DATASET_ROOT / window.name / instrument_id, instrument_id)
             if index == 0:
@@ -43,15 +51,40 @@ def main() -> None:
                     PROGRAM_PATH,
                     instrument_id,
                     [s for s in states if s.ts_event < screen_end],
+                    execution_contract=execution_contract,
                     quotes=[quote for quote in quotes if quote.ts_event < screen_end],
                     bars=[bar for bar in bars if bar.ts_event < screen_end],
                 )
                 if not screen_passes(screen.metrics):
                     print(json.dumps({"ok": False, "stage": 2, "error": screen.metrics.error or "screen rejected"}))
                     return
-            folds.append(run_candidate(PROGRAM_PATH, instrument_id, states, quotes=quotes, bars=bars).metrics)
+            result = run_candidate(
+                PROGRAM_PATH,
+                instrument_id,
+                states,
+                quotes=quotes,
+                bars=bars,
+                execution_contract=execution_contract,
+            )
+            if not execution_events_valid(execution_contract, result.execution_events):
+                print(json.dumps({
+                    "ok": False,
+                    "stage": 2,
+                    "error": "trusted execution contract violation",
+                    "execution_contract": execution_contract,
+                    "execution_events": execution_events + list(result.execution_events),
+                }))
+                return
+            folds.append(result.metrics)
+            execution_events.extend(result.execution_events)
         aggregate = aggregate_folds(folds)
-        print(json.dumps({"ok": True, "stage": 3, "metrics": aggregate.to_open_evolve()}))
+        print(json.dumps({
+            "ok": True,
+            "stage": 3,
+            "metrics": aggregate.to_open_evolve(),
+            "execution_contract": execution_contract,
+            "execution_events": execution_events,
+        }))
     except Exception as exc:
         stage = 1 if "folds" not in locals() else 2
         message = f"{type(exc).__name__}: {exc}"[:500]

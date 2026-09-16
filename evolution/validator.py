@@ -20,6 +20,8 @@ from evolution.report import write_research_report
 from evolution.dataset import verify_manifest
 from evolution.run_context import run_validation_context
 from evolution.run_context import validate_run_candidate
+from evolution.backtest import execution_events_valid
+from evolution.spec import LEGACY_EXECUTION_CONTRACT
 from evolution.spec import ResearchStatus
 from nautilus_trader.model.identifiers import InstrumentId
 from nautilus_trader.persistence.catalog.parquet import ParquetDataCatalog
@@ -41,6 +43,13 @@ def promote_top_candidates(
     register_family(governance_root, family_id, hypothesis, instrument_id, run_id)
     rerank = json.loads((run_dir / "rerank.json").read_text(encoding="utf-8"))
     sensitivity = json.loads((run_dir / "sensitivity.json").read_text(encoding="utf-8"))
+    execution_contract = run_validation_context(run_dir).execution_contract
+    evolved_entries = [item for item in rerank.get("candidates", []) if item.get("fast_rank") is not None]
+    if any(
+        str(item.get("execution_contract", LEGACY_EXECUTION_CONTRACT)) != execution_contract
+        for item in evolved_entries
+    ):
+        raise ValueError("rerank candidates do not preserve the run execution contract")
     qualification = qualify_discovery(rerank, sensitivity, family_id)
     if not qualification.qualified:
         payload = {
@@ -107,10 +116,21 @@ def promote_top_candidates(
     evaluated: list[CandidateResult] = []
     paths: dict[str, Path] = {}
     for entry, path, discovery in candidates:
-        first = run_candidate(path, instrument_id, validation_states, 1, validation_quotes, validation_bars).metrics
-        second = run_candidate(path, instrument_id, validation_states, 1, validation_quotes, validation_bars).metrics
-        if first != second:
+        first_result = run_candidate(
+            path, instrument_id, validation_states, 1, validation_quotes, validation_bars,
+            execution_contract=execution_contract,
+        )
+        second_result = run_candidate(
+            path, instrument_id, validation_states, 1, validation_quotes, validation_bars,
+            execution_contract=execution_contract,
+        )
+        if (
+            first_result.metrics != second_result.metrics
+            or first_result.execution_events != second_result.execution_events
+            or not execution_events_valid(execution_contract, first_result.execution_events)
+        ):
             continue
+        first = first_result.metrics
         candidate = CandidateResult(entry["candidate_id"], discovery, validation=first)
         evaluated.append(candidate)
         paths[candidate.candidate_id] = path
@@ -132,12 +152,27 @@ def promote_top_candidates(
     champion = validation_champion(evaluated)
     acquire_holdout_lock(governance_root, family_id, instrument_id, run_id, champion.candidate_id)
     holdout_states, holdout_quotes, holdout_bars = _load_split(dataset_root, "holdout", instrument_id)
-    holdout = run_candidate(paths[champion.candidate_id], instrument_id, holdout_states, 1, holdout_quotes, holdout_bars).metrics
+    holdout = run_candidate(
+        paths[champion.candidate_id], instrument_id, holdout_states, 1, holdout_quotes, holdout_bars,
+        execution_contract=execution_contract,
+    ).metrics
     champion = CandidateResult(champion.candidate_id, champion.discovery, champion.validation, holdout)
-    validation_sma = run_candidate(SMA_3_8, instrument_id, validation_states, 1, validation_quotes, validation_bars).metrics
-    holdout_sma = run_candidate(SMA_3_8, instrument_id, holdout_states, 1, holdout_quotes, holdout_bars).metrics
-    validation_bh = run_candidate(BUY_AND_HOLD, instrument_id, validation_states, 1, validation_quotes, validation_bars).metrics
-    holdout_bh = run_candidate(BUY_AND_HOLD, instrument_id, holdout_states, 1, holdout_quotes, holdout_bars).metrics
+    validation_sma = run_candidate(
+        SMA_3_8, instrument_id, validation_states, 1, validation_quotes, validation_bars,
+        execution_contract=LEGACY_EXECUTION_CONTRACT,
+    ).metrics
+    holdout_sma = run_candidate(
+        SMA_3_8, instrument_id, holdout_states, 1, holdout_quotes, holdout_bars,
+        execution_contract=LEGACY_EXECUTION_CONTRACT,
+    ).metrics
+    validation_bh = run_candidate(
+        BUY_AND_HOLD, instrument_id, validation_states, 1, validation_quotes, validation_bars,
+        execution_contract=LEGACY_EXECUTION_CONTRACT,
+    ).metrics
+    holdout_bh = run_candidate(
+        BUY_AND_HOLD, instrument_id, holdout_states, 1, holdout_quotes, holdout_bars,
+        execution_contract=LEGACY_EXECUTION_CONTRACT,
+    ).metrics
     feasible = is_feasible(
         champion,
         single_fitness(validation_sma),
