@@ -31,10 +31,20 @@ This file is the entry point for a new research session.
 - All three smoke-run executable champions remained negative under the official
   profile. BTC and ETH are cost-fragile, while BNB remains negative before fees.
   None may access validation.
+- Supplemental executable discovery data now covers every instrument through
+  2026-09-20 (BTC from 2026-09-05; ETH and BNB from 2026-08-29). All splits
+  passed the supplemental coverage audit. Market regime characterization on
+  this data is deferred: the vol and direction rules are fixed, but the trend
+  axis (return magnitude vs path efficiency vs both) is an open decision.
+  See `docs/superpowers/plans/2026-09-21-supplemental-data-market-regime.md`.
 
 ## Next Useful Work
 
 Choose one of these before writing more code:
+
+- Decide the market regime trend-axis rule (magnitude, path efficiency, or
+  both) and run the deferred regime characterization to produce the extended
+  discovery calendar (Milestone 2.6).
 
 - Continue down-streak pressure only as a BTC-focused or BNB signed-volume
   30-minute regime/filter candidate.

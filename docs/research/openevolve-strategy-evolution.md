@@ -21,7 +21,15 @@ The live catalog coverage audit on 2026-08-29 found common BTC/ETH/BNB data for
 2026-06-13 through 2026-06-30 and 2026-07-02 through 2026-07-24, with 2026-07-01
 missing. The executable split was therefore adjusted to discovery 2026-06-13 through
 2026-07-12, validation 2026-07-12 through 2026-07-18, and holdout 2026-07-18 through
-2026-07-25. The isolated 2026-08-28 day is quarantined and unused. This replaces the
+2026-07-25. The isolated 2026-08-28 day is quarantined and unused.
+
+On 2026-09-21 supplemental executable-profile discovery data was added under
+`.local/evolution-data-supplemental/`: BTCUSDT 2026-09-05 through 2026-09-21,
+ETHUSDT and BNBUSDT 2026-08-29 through 2026-09-21 (continuing BTC's existing
+2026-08-29 through 2026-09-05 supplements). All three splits passed the
+supplemental coverage audit with zero missing state buckets or quote seconds.
+These are isolated discovery-only supplements; they are not registered
+evaluator folds and do not touch the protected validation/holdout windows. This replaces the
 original August validation/holdout proposal, which had no continuous catalog data.
 
 Build local data with:
