@@ -361,8 +361,10 @@ information belong in diagnostics and promotion gates.
 
 ### Deliverables
 
-- [ ] A documented extended discovery calendar
-- [ ] Dataset manifests and hashes for every fold
+- [x] A documented extended discovery calendar
+  ([Market Regime Characterization](research/market-regime-characterization.md))
+- [x] Dataset manifests and hashes for every fold (supplemental audit reports under
+  `outputs/evolution-diagnostics/`)
 - [ ] Sharpe uncertainty and concentration diagnostics
 - [ ] A multiple-testing warning tied to the effective search budget
 

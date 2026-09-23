@@ -33,18 +33,15 @@ This file is the entry point for a new research session.
   None may access validation.
 - Supplemental executable discovery data now covers every instrument through
   2026-09-20 (BTC from 2026-09-05; ETH and BNB from 2026-08-29). All splits
-  passed the supplemental coverage audit. Market regime characterization on
-  this data is deferred: the vol and direction rules are fixed, but the trend
-  axis (return magnitude vs path efficiency vs both) is an open decision.
-  See `docs/superpowers/plans/2026-09-21-supplemental-data-market-regime.md`.
+  passed the supplemental coverage audit. Market regime characterization is
+  complete (Milestone 2.6): the trend axis was decided as rule C (magnitude
+  AND path efficiency, 2x trailing median) and the regime map was generated.
+  See [Market Regime Characterization](market-regime-characterization.md)
+  and `docs/superpowers/plans/2026-09-21-supplemental-data-market-regime.md`.
 
 ## Next Useful Work
 
 Choose one of these before writing more code:
-
-- Decide the market regime trend-axis rule (magnitude, path efficiency, or
-  both) and run the deferred regime characterization to produce the extended
-  discovery calendar (Milestone 2.6).
 
 - Continue down-streak pressure only as a BTC-focused or BNB signed-volume
   30-minute regime/filter candidate.
@@ -94,3 +91,4 @@ For a new session, read these in order:
 10. [Evolution Promotion Protocol](promotion-protocol.md)
 11. [Literature and Hypothesis Registry](literature/README.md)
 12. [Alpha Signal Format](../alpha-signal-format.md)
+13. [Market Regime Characterization](market-regime-characterization.md)
