@@ -1,7 +1,6 @@
 # Market Regime Classifier v2 Investigation
 
-Status: v2 rule implemented 2026-09-29 per `docs/dev/market-regime-v2-spec.md`
-(`reports/market_regime_report.py`, map schema_version 2, v2 preregistration in
+Status: v2 rule implemented 2026-09-29 (`reports/market_regime_report.py`, map schema_version 2, v2 preregistration in
 `market-regime-characterization.md`). Evaluation (section 6) is deferred until
 the data prerequisite (section 4.7) is met. Nothing in this note is a
 hypothesis acceptance; no fitness, ranking, or promotion use.
