@@ -5,23 +5,28 @@ registered discovery folds and the supplemental discovery splits, so the
 extended discovery calendar in docs/research/market-regime-characterization.md
 can document which market regimes the extended discovery data covers.
 
-Preregistered rules (see docs/research/market-regime-characterization.md):
+Preregistered rules v2 (see docs/research/market-regime-characterization.md):
 
 - Complete day: at least 600 one-minute EvolutionMarketState closes.
-- r_d: simple daily return, close(last minute of d) / close(last minute of
-  d-1) - 1. Null when the previous UTC day is absent from the sample.
+- r3_d: 3-complete-day cumulative return, close_d / close_base - 1, where
+  base is the 3rd-most-recent complete day at or before d (the span holds
+  exactly 3 complete days; calendar gaps tolerated). Null when the span
+  cannot be formed.
+- eff3_d: |close_d - close_base| / sum of one-minute path length over the
+  same 3 complete days. Null when the denominator is zero.
 - sigma_d: sample standard deviation of one-minute log returns within day d,
   annualized by sqrt(525600).
-- eff_d: |close_d - open_d| / sum(|one-minute close changes|) within day d
-  (Kaufman efficiency ratio at daily granularity). Null when the denominator
-  is zero.
-- Trailing baseline: the up-to-30 complete UTC days strictly before d (all
-  available earlier complete days for the first 30 days). Trailing only.
+- Trailing baseline: the up-to-90 complete UTC days strictly before d; fewer
+  than 30 prior complete days -> no_baseline. Trailing only.
 - Vol regime: high_vol when sigma_d >= median(trailing sigma), else low_vol.
-- Trend regime (rule C, preregistered 2026-09-21): trending when BOTH
-  |r_d| >= 2 * median(trailing |r|) and eff_d >= 2 * median(trailing eff),
-  else non_trending.
-- Direction: up / down / flat from the sign of r_d.
+- Trend regime (hysteresis): enter trending when |r3_d| >= 2.0 x median
+  (trailing |r3|) AND eff3_d >= q75(trailing eff3); exit trending when
+  |r3_d| < 1.0 x median(trailing |r3|).
+- Direction: up / down / flat from r3_d with a deadband: flat when
+  |r3_d| <= 0.5 x stdev(trailing r3).
+- Break flag (diagnostic only, never changes labels or baselines): two-sided
+  CUSUM on (sigma_d - median_90d) / median_90d with k = 0.05, h = 4.0, reset
+  on trigger.
 - Regime label: "<vol>_<trend>_<direction>", e.g. high_vol_trending_up.
 
 Calendar day assignment: each one-minute state's interval ends at ts_event
@@ -51,8 +56,24 @@ from evolution.market_state import EvolutionMarketState
 DAY_NS = 86_400 * 1_000_000_000
 MINUTE_NS = 60 * 1_000_000_000
 MIN_CLOSES_PER_DAY = 600
-TRAILING_WINDOW_DAYS = 30
-TREND_MULTIPLIER = 2.0
+# Rule v2 (preregistered; see docs/research/market-regime-characterization.md).
+# Candidate sets (selection deferred to the evaluation phase; the primary
+# variant below carries the decision):
+#   anchor window (days)        {90, 60}
+#   trend entry x median(|r3|)  {1.5, 2.0, 3.0}
+#   trend exit  x median(|r3|)  {1.0, 1.5}
+#   efficiency quantile         {0.50, 0.75, 0.90}
+#   direction deadband x stdev  {0.25, 0.5}
+#   CUSUM k (relative sigma dev){0.05, 0.10}
+#   CUSUM h                     {4.0, 6.0}
+TRAILING_WINDOW_DAYS = 90
+BASELINE_FLOOR_DAYS = 30
+TREND_ENTRY_MULTIPLIER = 2.0
+TREND_EXIT_MULTIPLIER = 1.0
+EFFICIENCY_QUANTILE = 0.75  # eff3_q75 = statistics.quantiles(values, n=4)[2]
+DIRECTION_DEADBAND_SDS = 0.5
+CUSUM_K = 0.05
+CUSUM_H = 4.0
 ANNUALIZATION_SECONDS_PER_YEAR = 525_600
 
 ALL_INSTRUMENTS = ("BTCUSDT.BINANCE", "ETHUSDT.BINANCE", "BNBUSDT.BINANCE")
@@ -88,25 +109,31 @@ class DayObservation:
     last_close: float | None
     sigma_annualized: float | None
     path_efficiency: float | None
+    intraday_path_length: float
     daily_return: float | None
 
 
 @dataclass(frozen=True)
 class DayRegime:
-    """Classified regime row for one UTC day."""
+    """Classified regime row for one UTC day (rule v2)."""
 
     day: str
     source_split: str
     manifest_schema: int
     close_count: int
     daily_return: float | None
+    r3: float | None
     sigma_annualized: float | None
+    eff3: float | None
+    sigma_dev: float | None
     path_efficiency: float | None
     status: str
     vol_regime: str | None
     trend_regime: str | None
     direction: str | None
     regime_label: str | None
+    break_flag: bool | None
+    anchors: dict[str, float | None] | None
 
 
 def default_split_map(
@@ -182,6 +209,7 @@ def load_day_observations(root: Path, split: str, instrument_id: str) -> tuple[l
                 last_close=closes[-1],
                 sigma_annualized=sigma,
                 path_efficiency=efficiency,
+                intraday_path_length=denominator,
                 daily_return=None,
             ),
         )
@@ -243,97 +271,155 @@ def _replace(obs: DayObservation, **changes: object) -> DayObservation:
     return DayObservation(**values)
 
 
-def vol_rule_1x_median(sigma: float, sigma_baseline: Sequence[float]) -> str:
-    """high_vol when sigma is at or above the trailing baseline median."""
-    return "high_vol" if sigma >= statistics.median(sigma_baseline) else "low_vol"
+def _span_features(complete_prior: Sequence[DayObservation], obs: DayObservation) -> tuple[float | None, float | None]:
+    """3-complete-day span features for day obs: (r3, eff3).
 
-
-def trend_rule_c_magnitude_and_efficiency_2x_median(
-    abs_daily_return: float,
-    abs_return_baseline: Sequence[float],
-    path_efficiency: float | None,
-    efficiency_baseline: Sequence[float],
-) -> bool:
-    """Preregistered trend rule (candidate C, 2x trailing median, 2026-09-21).
-
-    A day is trending iff it is BOTH large in magnitude and efficient in
-    path, each at or above twice the trailing baseline median. Magnitude
-    alone would label violent V-shaped reversal days as trending; path
-    efficiency alone would label small-range low-volatility drift days.
+    base is the 3rd-most-recent complete day at or before obs (the 2nd
+    complete day strictly before it); the span is base, the complete day in
+    between, and obs. Returns (None, None) when the span cannot be formed,
+    and eff3 is None when the span path length is zero.
     """
-    if not abs_return_baseline or path_efficiency is None or not efficiency_baseline:
-        return False
-    magnitude_ok = abs_daily_return >= TREND_MULTIPLIER * statistics.median(abs_return_baseline)
-    efficiency_ok = path_efficiency >= TREND_MULTIPLIER * statistics.median(efficiency_baseline)
-    return magnitude_ok and efficiency_ok
+    if len(complete_prior) < 2:
+        return None, None
+    base = complete_prior[-2]
+    if base.last_close is None or base.last_close <= 0 or obs.last_close is None or obs.last_close <= 0:
+        return None, None
+    r3 = obs.last_close / base.last_close - 1.0
+    span = (base, complete_prior[-1], obs)
+    denominator = sum(day.intraday_path_length for day in span)
+    if denominator <= 0.0:
+        return r3, None
+    eff3 = abs(obs.last_close - base.last_close) / denominator
+    return r3, eff3
 
 
-def _direction(daily_return: float | None) -> str | None:
-    if daily_return is None:
-        return None
-    if daily_return > 0:
-        return "up"
-    if daily_return < 0:
-        return "down"
-    return "flat"
+def _unlabeled(obs: DayObservation, *, status: str, r3: float | None = None, eff3: float | None = None) -> DayRegime:
+    """Regime row for a day that is not classified (no sub-labels, anchors, or flag)."""
+    return DayRegime(
+        day=obs.day,
+        source_split=obs.source_split,
+        manifest_schema=obs.manifest_schema,
+        close_count=obs.close_count,
+        daily_return=obs.daily_return,
+        r3=r3,
+        sigma_annualized=obs.sigma_annualized,
+        eff3=eff3,
+        sigma_dev=None,
+        path_efficiency=obs.path_efficiency,
+        status=status,
+        vol_regime=None,
+        trend_regime=None,
+        direction=None,
+        regime_label=None,
+        break_flag=None,
+        anchors=None,
+    )
 
 
 def classify_days(observations: Sequence[DayObservation]) -> list[DayRegime]:
-    """Classify vol x trend x direction for each day using trailing baselines only."""
+    """Classify vol x trend x direction for each day (rule v2).
+
+    Every statistic for day d uses complete days strictly before d; the
+    trend state and the CUSUM state carry forward in time only. A future day
+    never changes any earlier label.
+    """
     regimes: list[DayRegime] = []
-    eligible_prior: list[DayObservation] = []
+    complete_prior: list[DayObservation] = []
+    complete_r3: list[float | None] = []
+    complete_eff3: list[float | None] = []
+    trending = False
+    s_plus = 0.0
+    s_minus = 0.0
     for obs in sorted(observations, key=lambda item: item.day):
         if obs.close_count < MIN_CLOSES_PER_DAY:
-            regimes.append(
-                DayRegime(
-                    day=obs.day,
-                    source_split=obs.source_split,
-                    manifest_schema=obs.manifest_schema,
-                    close_count=obs.close_count,
-                    daily_return=obs.daily_return,
-                    sigma_annualized=obs.sigma_annualized,
-                    path_efficiency=obs.path_efficiency,
-                    status="insufficient_data",
-                    vol_regime=None,
-                    trend_regime=None,
-                    direction=_direction(obs.daily_return),
-                    regime_label=None,
-                ),
-            )
+            regimes.append(_unlabeled(obs, status="insufficient_data"))
             continue
 
-        window = eligible_prior[-TRAILING_WINDOW_DAYS:]
-        sigma_baseline = [p.sigma_annualized for p in window if p.sigma_annualized is not None]
-        abs_return_baseline = [abs(p.daily_return) for p in window if p.daily_return is not None]
-        efficiency_baseline = [p.path_efficiency for p in window if p.path_efficiency is not None]
+        if len(complete_prior) < BASELINE_FLOOR_DAYS:
+            r3, eff3 = _span_features(complete_prior, obs)
+            regimes.append(_unlabeled(obs, status="no_baseline", r3=r3, eff3=eff3))
+            complete_prior.append(obs)
+            complete_r3.append(r3)
+            complete_eff3.append(eff3)
+            continue
 
-        vol_regime = None
-        if obs.sigma_annualized is not None and sigma_baseline:
-            vol_regime = vol_rule_1x_median(obs.sigma_annualized, sigma_baseline)
-        trend_regime = None
-        if obs.daily_return is not None:
-            trending = trend_rule_c_magnitude_and_efficiency_2x_median(
-                abs(obs.daily_return), abs_return_baseline, obs.path_efficiency, efficiency_baseline
-            )
-            trend_regime = "trending" if trending else "non_trending"
-        direction = _direction(obs.daily_return)
-        classified = vol_regime is not None and trend_regime is not None
-        regime = DayRegime(
-            day=obs.day,
-            source_split=obs.source_split,
-            manifest_schema=obs.manifest_schema,
-            close_count=obs.close_count,
-            daily_return=obs.daily_return,
-            sigma_annualized=obs.sigma_annualized,
-            path_efficiency=obs.path_efficiency,
-            status="classified" if classified else "no_baseline",
-            vol_regime=vol_regime,
-            trend_regime=trend_regime,
-            direction=direction,
-            regime_label=(f"{vol_regime}_{trend_regime}_{direction}" if classified else None),
+        window = complete_prior[-TRAILING_WINDOW_DAYS:]
+        sigmas = [p.sigma_annualized for p in window if p.sigma_annualized is not None]
+        window_r3 = [value for value in complete_r3[-TRAILING_WINDOW_DAYS:] if value is not None]
+        window_eff3 = [value for value in complete_eff3[-TRAILING_WINDOW_DAYS:] if value is not None]
+
+        sigma_median_90 = statistics.median(sigmas) if sigmas else None
+        sigma_median_30 = statistics.median(sigmas[-30:]) if sigmas else None
+        abs_r3_median = statistics.median(abs(value) for value in window_r3) if window_r3 else None
+        eff3_q75 = statistics.quantiles(window_eff3, n=4)[2] if len(window_eff3) >= 2 else None
+        r3_sd = statistics.stdev(window_r3) if len(window_r3) >= 2 else None
+
+        r3, eff3 = _span_features(complete_prior, obs)
+
+        vol_regime = "low_vol"
+        if obs.sigma_annualized is not None and sigma_median_90 is not None:
+            vol_regime = "high_vol" if obs.sigma_annualized >= sigma_median_90 else "low_vol"
+
+        if not trending and r3 is not None and eff3 is not None and abs_r3_median is not None and eff3_q75 is not None:
+            if abs(r3) >= TREND_ENTRY_MULTIPLIER * abs_r3_median and eff3 >= eff3_q75:
+                trending = True
+        elif trending and r3 is not None and abs_r3_median is not None:
+            if abs(r3) < TREND_EXIT_MULTIPLIER * abs_r3_median:
+                trending = False
+        trend_regime = "trending" if trending else "non_trending"
+
+        if r3 is None:
+            direction: str | None = None
+        elif r3 == 0.0:
+            direction = "flat"
+        elif r3_sd is None:
+            direction = "up" if r3 > 0.0 else "down"
+        elif abs(r3) <= DIRECTION_DEADBAND_SDS * r3_sd:
+            direction = "flat"
+        else:
+            direction = "up" if r3 > 0.0 else "down"
+
+        sigma_dev: float | None = None
+        break_flag = False
+        if obs.sigma_annualized is not None and sigma_median_90 is not None and sigma_median_90 > 0:
+            sigma_dev = (obs.sigma_annualized - sigma_median_90) / sigma_median_90
+            s_plus = max(0.0, s_plus + sigma_dev - CUSUM_K)
+            s_minus = min(0.0, s_minus - sigma_dev - CUSUM_K)
+            if max(s_plus, -s_minus) > CUSUM_H:
+                break_flag = True
+                s_plus = 0.0
+                s_minus = 0.0
+
+        regimes.append(
+            DayRegime(
+                day=obs.day,
+                source_split=obs.source_split,
+                manifest_schema=obs.manifest_schema,
+                close_count=obs.close_count,
+                daily_return=obs.daily_return,
+                r3=r3,
+                sigma_annualized=obs.sigma_annualized,
+                eff3=eff3,
+                sigma_dev=sigma_dev,
+                path_efficiency=obs.path_efficiency,
+                status="classified",
+                vol_regime=vol_regime,
+                trend_regime=trend_regime,
+                direction=direction,
+                regime_label=f"{vol_regime}_{trend_regime}_{direction}",
+                break_flag=break_flag,
+                anchors={
+                    "sigma_median_90d": sigma_median_90,
+                    "sigma_median_30d": sigma_median_30,
+                    "abs_r3_median": abs_r3_median,
+                    "eff3_q75": eff3_q75,
+                    "r3_sd": r3_sd,
+                },
+            ),
         )
-        regimes.append(regime)
-        eligible_prior.append(obs)
+        complete_prior.append(obs)
+        complete_r3.append(r3)
+        complete_eff3.append(eff3)
     return regimes
 
 
@@ -348,6 +434,7 @@ def coverage_summary(regimes: Sequence[DayRegime]) -> dict[str, object]:
     return {
         "days_total": len(regimes),
         "days_classified": len(classified),
+        "days_break_flag": sum(1 for regime in classified if regime.break_flag is True),
         "by_label": dict(sorted(by_label.items())),
         "by_quadrant": dict(sorted(by_quadrant.items())),
     }
@@ -407,21 +494,40 @@ def build_instrument_map(split_map: InstrumentSplits) -> dict[str, object]:
 
 def build_map(instrument_ids: Sequence[str], split_map: dict[str, InstrumentSplits]) -> dict[str, object]:
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "report": "market-regime-map",
         "scope": "discovery-only diagnostic; not a factor, no fitness or promotion use",
         "rules": {
             "complete_day_min_closes": MIN_CLOSES_PER_DAY,
             "trailing_window_days": TRAILING_WINDOW_DAYS,
+            "baseline_floor_days": BASELINE_FLOOR_DAYS,
             "annualization_seconds_per_year": ANNUALIZATION_SECONDS_PER_YEAR,
-            "vol_regime": "high_vol iff sigma_d >= median(trailing up-to-30 complete days sigma); else low_vol",
+            "span": "r3/eff3 span the 3rd-most-recent complete day at or before d through d (exactly 3 complete days)",
+            "vol_regime": "high_vol iff sigma_d >= median(trailing up-to-90 complete days sigma); else low_vol",
             "trend_regime": (
-                "rule C (2026-09-21): trending iff |r_d| >= 2*median(trailing |r|) AND "
-                "eff_d >= 2*median(trailing eff); else non_trending"
+                "hysteresis: enter trending iff |r3| >= 2.0*median(trailing |r3|) AND eff3 >= q75(trailing eff3); "
+                "exit trending iff |r3| < 1.0*median(trailing |r3|)"
             ),
-            "direction": "up/down/flat from the sign of r_d",
+            "direction": "flat iff |r3| <= 0.5*stdev(trailing r3); else up/down by sign of r3",
+            "break_flag": (
+                "two-sided CUSUM on (sigma_d - median_90d)/median_90d, k=0.05 h=4.0, reset on trigger; "
+                "diagnostic only, never changes labels or baselines"
+            ),
             "regime_label": "<vol_regime>_<trend_regime>_<direction>",
             "day_assignment": "calendar day = (ts_event - 60s) // 86400s; state interval ends at ts_event",
+            "candidate_sets": {
+                "anchor_window_days": [90, 60],
+                "trend_entry_x_median_abs_r3": [1.5, 2.0, 3.0],
+                "trend_exit_x_median_abs_r3": [1.0, 1.5],
+                "efficiency_quantile": [0.50, 0.75, 0.90],
+                "direction_deadband_x_stdev_r3": [0.25, 0.5],
+                "cusum_k": [0.05, 0.10],
+                "cusum_h": [4.0, 6.0],
+            },
+            "selection_rule": (
+                "training-window-only selection; the primary variant carries the decision; "
+                "preregistration: docs/research/market-regime-characterization.md (v2 section)"
+            ),
         },
         "instruments": {instrument_id: build_instrument_map(split_map[instrument_id]) for instrument_id in instrument_ids},
     }
