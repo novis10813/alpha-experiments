@@ -1,93 +1,77 @@
 # Current Research Focus
 
-This file is the entry point for a new research session.
+Entry point for a new research session. Updated 2026-10-07.
 
-## Current State
+## Current state
 
-- The raw order book imbalance research line is complete for now.
-- Raw `orderbook_imbalance_depth10` should be treated as a microstructure
-  feature, filter, or execution-timing input, not as a standalone tradable alpha.
-- The most relevant follow-on rule candidate from that line is
-  [Down-Streak Pressure](factors/down_streak_pressure.md).
-- Down-streak pressure is instrument-specific: BTC has the clearest conditional
-  continuation structure, ETH rejected the structure in validation, and BNB only
-  showed a thin 30 minute signed-volume regime effect.
-- Pure 1 minute five-green-streak continuation is a weak K-line feature
-  candidate, not a standalone alpha. ETH showed only small longer-horizon gross
-  continuation that did not survive simple cost assumptions, and BNB mostly
-  rejected the standalone continuation hypothesis.
-- One-day BTC testing of `orderbook_imbalance_ma_spread_5m_15m` rejected the
-  broad condition `obi_5m_mean > obi_15m_mean` as a standalone bullish rule.
-  Requiring `obi_5m_mean > 0` improved the shape, but the result remained small
-  and unstable after cooldown and cost checks.
-- Generated artifacts in `outputs/` are scratch files. Durable findings should
-  live in factor notes under `docs/research/factors/` or in focused experiment
-  notes under `docs/research/`.
-- Milestone 1 experiment-credibility work is complete. Fast discovery may
-  generate and screen candidates, but executable discovery with one-second
-  quotes, a one-second delay, and 10 bps fees determines final discovery rank.
-  Machine-enforced qualification blocks unqualified candidates before validation
-  loading, and family-level locks protect holdout use.
-- All three smoke-run executable champions remained negative under the official
-  profile. BTC and ETH are cost-fragile, while BNB remains negative before fees.
-  None may access validation.
-- Supplemental executable discovery data now covers every instrument through
-  2026-09-20 (BTC from 2026-09-05; ETH and BNB from 2026-08-29). All splits
-  passed the supplemental coverage audit. Market regime characterization is
-  complete (Milestone 2.6): the trend axis was decided as rule C (magnitude
-  AND path efficiency, 2x trailing median) and the regime map was generated.
-  See [Market Regime Characterization](market-regime-characterization.md).
+- **Cost is the binding constraint.** Discovery-only observation studies A1-A3
+  ([experiment ledger](experiment-ledger.md#observation-studies)) measured the
+  directional hit rate needed to break even. Under the v1 spot profile (20 bps
+  round trip) it exceeds 1.0 at 15 minutes or less and 0.90 at 30 minutes. Under
+  perpetual taker fees (10 bps round trip) it is 0.79 to 0.88 at 15 minutes,
+  0.70 to 0.76 at 30 minutes, 0.64 to 0.69 at 60 minutes, and 0.57 to 0.59 at
+  240 minutes.
+- **Large moves are predictable in size, not direction.** Volatility clustering
+  and the UTC 13-15 window predict large 30 and 60 minute moves on all three
+  instruments. No tested feature predicts their direction.
+- **A3 rejected.** The 4h reversal after a large 24h move earned 0 to 7 bps gross
+  per trade under triple-barrier exits, below both spot and perpetual taker cost.
+- **Minute-pooled diagnostics overstate edge.** Decile spreads computed on
+  overlapping minutes were 2 to 5 times the per-trade gross edge of
+  non-overlapping first-trigger trades. Judge candidates on per-trade results.
+- **Data does not match the venue.** The target venue is Binance USDⓈ-M
+  perpetuals, but the catalog holds spot data only. Spot microstructure features
+  (OBI, signed flow, spread) may lag perpetual price discovery.
+- **Cost profile v2 is drafted, not active.** See
+  [Execution Cost Profile v2](execution-cost-profile-v2.md).
+- **Milestone 1 smoke champions** remain negative under the official profile and
+  at 5 bps per fill. None may access validation.
+- **Market regime map** (rule v2) is generated. See
+  [Market Regime Characterization](market-regime-characterization.md).
 
-## Next Useful Work
+## Paused research lines
 
-Choose one of these before writing more code:
+These lines target horizons of 30 minutes or less, where breakeven needs a 70%
+or higher directional hit rate even under perpetual taker fees. Resume one only
+with a hypothesis that also selects large-move periods or uses a longer horizon.
 
-- Continue down-streak pressure only as a BTC-focused or BNB signed-volume
-  30-minute regime/filter candidate.
-- Refine down-streak pressure with explicit volatility, trade-density, and broad
-  market trend gates before considering any backtest or quote-based execution
-  screen.
-- If continuing K-line research, refine
-  [Five Green Streak](factors/five_green_streak.md) only with additional state
-  filters such as fifth-bar range, close location, volatility regime, pullback
-  entry, or order book confirmation.
-- If continuing OBI moving-average research, refine
-  [Order Book Imbalance MA Spread](factors/obi_ma_spread.md) with cross-up
-  events, minimum spread thresholds, longer BTC windows, and K-line state
-  confirmation before considering a backtest.
-- Start a new hypothesis-based factor note using
-  [Alpha Research Framework](research-framework.md) and the factor template.
-- Begin Milestone 2 with hypothesis-specific seed lineages. Use the Milestone 1
-  findings to define failure modes and search constraints, but do not feed full
-  discovery reports or scenario tables back into candidate prompts.
+| Line | Last status |
+| --- | --- |
+| [Down-Streak Pressure](factors/down_streak_pressure.md) | `feature_candidate`, BTC-only, 30 minute edge thin after cost and de-overlap |
+| [Five Green Streak](factors/five_green_streak.md) | `idea`, weak continuation that did not survive cost |
+| [OBI MA Spread](factors/obi_ma_spread.md) | `idea`, small and unstable after cooldown and cost |
 
-## Avoid For Now
+[Order Book Imbalance](factors/orderbook_imbalance_feature.md) stays a
+`feature_candidate` for filters and execution timing. Do not add more raw
+imbalance reports.
 
-- Do not add more raw order book imbalance reports unless there is a specific
-  new hypothesis that existing reports do not answer.
-- Do not promote raw order book imbalance to a backtest candidate.
-- Do not promote pure five-green-streak continuation to a backtest candidate
-  without a stronger confirmation layer.
-- Do not promote raw `obi_5m_mean > obi_15m_mean` to a long-only backtest
-  candidate.
-- Do not treat down-streak pressure as a universal cross-instrument rule.
-- Do not start prediction-oriented modeling until there are clearer rule
-  candidates, feature candidates, and diagnostic targets worth predicting.
+## Next useful work
 
-## Read First
+1. **Add perpetual data (D2).** Binance USDⓈ-M trades, depth, and funding in the
+   homestack catalog builder, outside this repository.
+2. **Activate cost profile v2 (D1).** Complete its activation checklist, then
+   implement it as a separate change.
+3. **New hypotheses from observation.** Work on discovery data only, count every
+   look in the experiment ledger, and register a mechanism before testing.
+   Target horizons of 240 minutes or more, or signals that select large-move
+   periods. Evaluate per trade with triple-barrier exits.
+4. **Maker execution (D3)** only after a tradable signal exists. It needs
+   tick-level queue and fill simulation.
 
-For a new session, read these in order:
+## Avoid
+
+- Pure direction signals at 30 minutes or less.
+- Promoting any raw feature to a backtest without per-trade, cost-inclusive
+  evidence.
+- Treating instrument-specific results as universal.
+- Prediction-oriented modeling before rule candidates and diagnostic targets
+  exist.
+
+## Read first
 
 1. [Alpha Research Framework](research-framework.md)
-2. [Order Book Imbalance Feature](factors/orderbook_imbalance_feature.md)
-3. [Down-Streak Pressure](factors/down_streak_pressure.md)
-4. [Five Green Streak](factors/five_green_streak.md)
-5. [Order Book Imbalance MA Spread](factors/obi_ma_spread.md)
-6. [Discovery Harness Diagnostic](discovery-harness-diagnostic.md)
-7. [Discovery Execution Parity](execution-parity.md)
-8. [Cost and Delay Sensitivity](cost-delay-sensitivity.md)
-9. [Eligibility Gate Audit](eligibility-gate-audit.md)
-10. [Evolution Promotion Protocol](promotion-protocol.md)
-11. [Literature and Hypothesis Registry](literature/README.md)
-12. [Alpha Signal Format](../alpha-signal-format.md)
-13. [Market Regime Characterization](market-regime-characterization.md)
+2. [Experiment Ledger](experiment-ledger.md)
+3. [Execution Cost Profile v2](execution-cost-profile-v2.md)
+4. [Promotion Protocol](promotion-protocol.md)
+
+The full list of notes is in the [research index](README.md).
