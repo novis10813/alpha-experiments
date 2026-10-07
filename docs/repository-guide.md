@@ -1,19 +1,16 @@
 # Repository Guide
 
-This guide is the canonical map for contributors and coding agents. Read it
-before changing research code or operating a data-backed experiment.
+The canonical map of this repository. Other documents link here instead of
+restating these rules.
 
 ## Purpose and non-purpose
 
-This repository contains local alpha research built on Nautilus Trader. It
-supports observable market features and states, narrow alpha rows, focused
-forward-return diagnostics, report generation, and a bounded OpenEvolve search
-workflow.
+The repository builds observable market features and states, narrow alpha rows,
+focused forward-return diagnostics, reports, and a bounded OpenEvolve search.
 
-The repository does not turn every measured feature into a strategy. It does not
-build or publish the homestack catalog, store credentials, commit generated
-outputs, or expose validation and holdout evidence for exploratory iteration.
-Read the finished catalog only. Treat research conclusions as instrument- and
+It does not turn every measured feature into a strategy, build or publish the
+catalog, store credentials, commit generated outputs, or expose validation and
+holdout evidence to exploratory work. Research conclusions are instrument- and
 assumption-specific.
 
 ## Top-level map
@@ -25,90 +22,67 @@ assumption-specific.
 | [`data/`](../data/) | Read-only Nautilus catalog access and market-data feature builders. See [`data/README.md`](../data/README.md). |
 | [`evolution/`](../evolution/) | Discovery datasets, candidate evaluation, sandboxing, search families, promotion gates, and split governance. |
 | [`experiments/`](../experiments/) | Runnable experiments and backtests, including the legacy SMA crossing command. |
-| [`reports/`](../reports/) | Focused diagnostic and report builders. Generated report files belong under `outputs/`. |
-| [`research/`](../research/) | Small research-support modules, including the literature registry validator and automated literature scout. Durable research decisions belong under [`docs/research/`](research/). |
-| [`tests/`](../tests/) | `unittest` coverage. Tests should use local fixtures and mocks rather than live catalog or service access. |
-| [`docs/`](./) | Durable repository, alpha, research, roadmap, literature, and evolution documentation. |
+| [`reports/`](../reports/) | Focused diagnostic and report builders. Generated files go under `outputs/`. |
+| [`research/`](../research/) | Literature registry validator and automated literature scout. |
+| [`tests/`](../tests/) | `unittest` coverage with local fixtures and mocks, no live catalog or service access. |
+| [`docs/`](./) | Repository, alpha format, roadmap, and [research notes](research/README.md). |
 
-The root also contains `pyproject.toml` and `uv.lock` for the environment, and
-`main.py` for the repository's small top-level entry point. `outputs/` is a
-local scratch area; its generated contents are not part of the repository map.
+## Configuration
 
-## Configuration, secrets, and generated material
+- **Dependencies:** declare them in `pyproject.toml`, run `uv sync`, and keep
+  `uv.lock` in step.
+- **Catalog:** set `CATALOG_S3_ENDPOINT`, `CATALOG_S3_ACCESS_KEY`,
+  `CATALOG_S3_SECRET_KEY`, and `CATALOG_OUTPUT_S3_BUCKET` in the shell or an
+  untracked `.env`. See [`data/README.md`](../data/README.md).
+- **Evolution:** `evolve` and `resume` use the self-hosted idlab vLLM endpoint
+  and `qwen3.8-27b` from `evolution/configs/base.yaml`. Set `VLLM_API_KEY` outside
+  the repository only if the endpoint requires it. `--iterations` is a total
+  target, and `resume` defaults to the last approved target. New runs never
+  overwrite existing run directories. Legacy runs without identity snapshots
+  cannot resume safely.
+- **Literature scout:** set `OPENROUTER_API_KEY`, and optionally `S2_API_KEY`,
+  outside the repository.
 
-- **Dependencies:** edit `pyproject.toml` only when a dependency change is
-  needed, then run `uv sync`; keep the lockfile in step with the project.
-- **Catalog runtime configuration:** set `CATALOG_S3_ENDPOINT`,
-  `CATALOG_S3_ACCESS_KEY`, `CATALOG_S3_SECRET_KEY`, and
-  `CATALOG_OUTPUT_S3_BUCKET` in the shell or an untracked local `.env`. Follow
-  [`data/README.md`](../data/README.md) and the operational catalog guide; do
-  not copy secret values into code, docs, fixtures, logs, or examples.
-- **Evolution runtime configuration:** `evolve` and `resume` use the self-hosted
-  idlab vLLM endpoint and `qwen3.8-27b` configured in `evolution/configs/base.yaml`.
-  Set `VLLM_API_KEY` outside the repository only if the endpoint requires authentication.
-  Evolution does not use OpenRouter. `--iterations` is a total target; resume
-  defaults to the last approved target. New runs never overwrite existing run
-  directories; legacy runs without identity snapshots cannot resume safely.
-- **Literature-scout runtime configuration:** provide `OPENROUTER_API_KEY` outside
-  the repository when running `research.literature_scout`. The optional `S2_API_KEY` can reduce
-  Semantic Scholar rate limiting. Evolution datasets, governance ledgers,
-  checkpoints, and run scratch data belong under `.local/` or `outputs/`, not in
-  tracked documentation.
-- **Generated outputs:** write alpha exports, market extracts, reports, and
-  evolution summaries under `outputs/`; keep them reproducible from commands in
-  durable research notes. `.local/`, `.pi/`, and `.worktrees/` are runtime or
-  agent-workspace directories. Do not scan, summarize, or commit their contents.
-  Before creating a new local artifact path, confirm its ignore status with
-  `git check-ignore`; the current ignore rules cover `outputs/*`, `.local/`,
-  and `.pi/`, while other local directories such as `.worktrees/` may remain
-  merely untracked.
+Never copy secret values into code, docs, fixtures, logs, or examples.
+
+## Local artifacts
+
+| Path | Content | Ignored |
+| --- | --- | --- |
+| `outputs/` | Generated alpha exports, market extracts, reports, and diagnostics. Reproducible from commands in research notes. | yes, except `outputs/README.md` |
+| `.local/` | Evolution datasets, governance ledgers, checkpoints, and build logs. | yes |
+| `.pi/` | Agent workspace. | yes |
+| `.worktrees/` | Agent worktrees. | no, only untracked |
+
+Do not scan, summarize, or commit the contents of `.local/`, `.pi/`, or
+`.worktrees/`. Before creating a new local artifact path, confirm it with
+`git check-ignore`.
 
 ## Catalog policy
 
-Use Nautilus Trader objects and APIs. `data/nautilus_catalog.py` constructs a
-read-only `ParquetDataCatalog` with the environment's path-style S3 settings.
-Do not replace it with `ParquetDataCatalog.from_uri(...)` in this environment.
-Repository commands may read the finished `nautilus-data` catalog, but must not
-trigger conversion jobs, write to S3, or require the homestack Docker network.
-The catalog builder's operational documentation is
+Use Nautilus Trader objects and APIs. `data/nautilus_catalog.py` builds a
+read-only `ParquetDataCatalog` with path-style S3 settings. Do not replace it with
+`ParquetDataCatalog.from_uri(...)` in this environment. Commands may read the
+finished `nautilus-data` catalog but must not trigger conversion jobs, write to
+S3, or require the homestack Docker network. The catalog builder is documented in
 [`/opt/docker/docs/homestack/nautilus-catalog-builder.md`](/opt/docker/docs/homestack/nautilus-catalog-builder.md).
-See [`data/README.md`](../data/README.md) for connection details and examples.
-
-## Research entry points
-
-Start a research session with [`docs/research/current-focus.md`](research/current-focus.md),
-then use [`docs/research/research-framework.md`](research/research-framework.md)
-and the [factor template](research/templates/factor-research-template.md). The
-[research index](research/README.md) summarizes current factor notes and the
-[literature registry](research/literature/README.md) records verified sources and
-source-grounded hypotheses. The [literature scout workflow](research/literature/scout-workflow.md)
-describes automated paper discovery and its staging/approval boundary. Keep the
-canonical alpha row defined by
-[`docs/alpha-signal-format.md`](alpha-signal-format.md); keep forward returns,
-costs, thresholds, positions, fills, PnL, and drawdown in diagnostics or
-backtests.
 
 ## Evolution boundaries
 
-Evolution uses chronological discovery folds for repeated search and diagnosis.
-Validation selects from a preregistered candidate set only after the executable
-discovery qualification gates pass. Holdout evaluates the validation champion
-once, under a family-level lock. Do not inspect validation or holdout artifacts,
-results, or generated data to guide a hypothesis, feature, fitness rule, or
-search configuration. Machine gates, not documentation or operator intent,
-control access.
+Discovery folds support repeated search and diagnosis. Validation selects from a
+preregistered candidate set only after executable discovery qualification passes.
+Holdout evaluates the validation champion once, under a family-level lock. Do not
+use validation or holdout artifacts, results, or data to guide a hypothesis,
+feature, fitness rule, or search configuration. Machine gates, not documentation
+or operator intent, control access.
 
-Use the detailed [evolution strategy guide](research/openevolve-strategy-evolution.md)
-for the current workflow and the [promotion protocol](research/promotion-protocol.md)
-for qualification, validation, holdout, and research statuses. The [experiment
-ledger](research/experiment-ledger.md) explains family identity and local
-holdout locks. The [execution parity](research/execution-parity.md), [eligibility
-audit](research/eligibility-gate-audit.md), and [cost and delay sensitivity](research/cost-delay-sensitivity.md)
-docs cover discovery diagnostics without repeating their policies here.
+Details: [evolution guide](research/openevolve-strategy-evolution.md),
+[promotion protocol](research/promotion-protocol.md), and
+[experiment ledger](research/experiment-ledger.md).
 
-## Verified commands
+## Commands
 
-Run these from the repository root:
+Run from the repository root:
 
 ```bash
 uv sync
@@ -117,17 +91,14 @@ uv run python -m evolution --help
 uv run python -m research.literature_registry --validate
 ```
 
-The legacy SMA crossing backtest remains available:
+The legacy SMA crossing backtest needs catalog settings and live catalog access.
+It is not part of the offline test gate:
 
 ```bash
 uv run python -m experiments.ma_crossing
 ```
 
-It requires catalog environment variables and live access to the finished catalog;
-it is not part of the offline unit-test gate.
-
-Build the current sandbox image with the repository's 0.2 tag, then use it for
-an evolution run:
+Build the evolution sandbox image and point the runner at it:
 
 ```bash
 docker build -f evolution/docker/Dockerfile -t alpha-evolution-sandbox:0.2 .
@@ -135,9 +106,7 @@ EVOLUTION_SANDBOX_IMAGE=alpha-evolution-sandbox:0.2 \
   uv run python -m evolution --help
 ```
 
-The image build uses `uv sync --frozen --no-dev` and copies only the runtime
-packages needed by the sandbox. A full evolution run additionally needs schema-v2 discovery data and access to
-idlab vLLM. Use `--dataset-root .local/evolution-data-v2` for the existing v2
-catalogs; do not relabel v1 manifests to pass preflight. Follow the detailed
-evolution documentation for research gates. Its older OpenRouter and automatic
-300-iteration resume instructions no longer describe the runner.
+The image build uses `uv sync --frozen --no-dev` and copies only the sandbox
+runtime packages. A full evolution run also needs schema-v2 discovery data and
+idlab vLLM access. Use `--dataset-root .local/evolution-data-v2` for the existing
+v2 catalogs. Do not relabel v1 manifests to pass preflight.

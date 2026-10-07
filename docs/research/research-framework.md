@@ -103,25 +103,7 @@ Good report questions:
 Avoid reports that only add more charts without changing the decision about the
 hypothesis.
 
-## Output Handling
+## Outputs and Notes
 
-Treat `outputs/` as a local scratch area. Generated CSV, HTML, and image files
-should be reproducible from commands recorded in research notes. Do not commit
-large generated outputs.
-
-Research notes should preserve:
-
-- hypothesis and signal definition
-- data window and instrument
-- commands needed to regenerate important artifacts
-- key numeric results
-- final interpretation and status
-
-When an experiment is complete, clean `outputs/` unless there is a specific
-reason to keep local artifacts temporarily.
-
-## Current Direction
-
-For now, this repository should stay centered on hypothesis-based and rule-based
-research. Prediction-oriented modeling can come later, after there are clear
-rule alphas, feature candidates, and diagnostic targets worth predicting.
+Artifact rules are in the [repository guide](../repository-guide.md#local-artifacts).
+Note rules are in the [research index](README.md#note-rules).
