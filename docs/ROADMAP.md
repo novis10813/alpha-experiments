@@ -1,549 +1,183 @@
 # Experiment Roadmap
 
-This roadmap organizes repository work into three sequential milestones:
-
-1. establish experiment credibility
-2. improve search capability
-3. strengthen engineering structure
-
-Complete the milestones in order. Better search is useful only after the backtest and
-selection protocol produce credible measurements. Structural cleanup should support a
-proven workflow rather than define one prematurely.
-
-## Current baseline
-
-The OpenEvolve smoke run completed 30 iterations independently for BTCUSDT, ETHUSDT,
-and BNBUSDT. All runs produced checkpoints and ten eligible discovery candidates, and
-all 107 tests passed. The best discovery Sharpe ratio for each instrument remained
-negative.
-
-These runs prove that the infrastructure executes end to end. They do not provide alpha
-evidence. Validation and holdout results remain uninspected and must stay untouched
-until a candidate passes the discovery gates defined in this roadmap.
-
-The canonical record of the current run is
-[`research/openevolve-strategy-evolution.md`](research/openevolve-strategy-evolution.md).
-
----
-
-# Milestone 1: Establish experiment credibility
-
-## Goal
-
-Make discovery fitness, execution assumptions, data splits, and promotion rules strong
-enough that a better score represents a better research candidate rather than a backtest
-artifact.
-
-Do not resume the current searches to 300 iterations until this milestone is complete.
-
-## 1.1 Diagnose the current backtest harness
-
-Add a discovery-only diagnostic that evaluates the initial strategy, SMA 3/8,
-buy-and-hold, and selected discovery candidates with the same reporting schema.
-
-Report at least:
-
-- gross return
-- fee drag
-- net return
-- gross and net daily Sharpe ratio
-- closed positions and order count
-- turnover
-- exposure ratio
-- average and median holding duration
-- average gross PnL and fee per closed position
-- per-fold returns and Sharpe ratios
-- best-day and worst-day contribution
-
-The first question to answer is whether candidates lose money before fees or whether a
-small gross edge is consumed by turnover and execution costs.
-
-### Deliverables
-
-- [x] A reproducible discovery diagnostic command
-- [x] Unit tests for the baseline diagnostic metric calculations
-- [x] A research note recording the fixed-baseline diagnosis
-- [x] No reads from validation or holdout datasets
-
-Fixed baselines are complete. Smoke-run candidate ingestion remains deferred until the
-candidate artifact boundary is reviewed alongside executable discovery reranking.
-
-## 1.2 Align discovery and promotion execution
-
-Discovery currently uses coarse quotes and zero execution delay, while validation and
-holdout use one-second quotes and a one-second delay. Measure the effect of this mismatch
-on discovery data.
-
-Use a two-stage discovery evaluation:
-
-1. a coarse screen rejects invalid or clearly poor candidates cheaply
-2. an executable rerank evaluates surviving candidates with discovery-period quote data
-   and the same delay assumptions used during promotion
-
-Keep validation and holdout physically and logically isolated from both stages.
-
-### Deliverables
-
-- [x] A coarse-versus-executable comparison pipeline on discovery data
-- [x] Profile-aware manifests for 60-second/zero-delay and 1-second/one-delay discovery data
-- [x] Tests covering quote ordering, signal availability, delay, fees, and end-of-window positions
-- [x] Deterministic executable reruns that must reproduce metrics exactly
-- [x] An offline top-N executable discovery rerank command
-- [x] Adopt the executable profile as the registered final discovery ranking model before the next formal search
-
-The registered protocol uses the fast profile for candidate generation and coarse
-screening. Executable discovery net daily Sharpe determines final discovery rank, and a
-second executable run must reproduce the result exactly. See
-[`research/execution-parity.md`](research/execution-parity.md).
-
-## 1.3 Add cost and delay sensitivity
-
-Run diagnostic scenarios on discovery data without changing the official fitness:
-
-- fees of 0, 5, 10, and 15 bps
-- execution delays of 0, 1, and 5 seconds where data permits
-
-The official ranking metric remains the annualized Sharpe ratio of after-fee daily
-returns under the registered execution assumptions. Sensitivity results act as
-qualification evidence, not ranking inputs.
-
-### Deliverables
-
-- [x] A standard fee-and-delay sensitivity table
-- [x] A clear distinction between official fitness and diagnostic scenarios
-- [x] A recorded reason when an apparent edge exists only under unrealistic costs
-
-See [`research/cost-delay-sensitivity.md`](research/cost-delay-sensitivity.md). BTC and
-ETH are cost-fragile; BNB is negative before fees.
-
-## 1.4 Review eligibility gates
-
-Measure how the current requirements of 20 closed positions and four active folds affect
-candidate selection. In particular, check whether the trade-count gate rejects lower
-turnover candidates and encourages fee-heavy switching.
-
-Compare discovery eligibility under several trade-count thresholds before changing the
-official rule. If the rule changes, preserve cross-fold activity and register the new
-rule before the next search.
-
-### Deliverables
-
-- [x] Sensitivity analysis for minimum closed-position thresholds
-- [x] Counts available from historical checkpoint artifacts, with missing reason detail reported
-- [x] Explicit rejection categories for syntax, lifecycle, sandbox, order, activity, and metric failures
-- [x] A documented final eligibility rule
-
-The 10, 15, 20, and 30 trade thresholds produce the same eligible sets in all three
-smoke checkpoints. The registered rule remains 20 closed positions and four active
-folds. See [`research/eligibility-gate-audit.md`](research/eligibility-gate-audit.md).
-
-## 1.5 Define discovery promotion gates
-
-A run may inspect validation only when its discovery candidate satisfies a preregistered
-set of conditions. Candidate ranking still uses only official net daily Sharpe.
-
-The initial promotion gate should require:
-
-- positive discovery net Sharpe
-- positive median fold return
-- activity across at least four discovery folds
-- positive returns in a majority of discovery folds
-- deterministic rerun agreement
-- survival under executable discovery reranking
-- no catastrophic collapse under the registered cost and delay sensitivity checks
-- a documented market-structure hypothesis
-
-Thresholds must be fixed before the next qualifying search. A negative discovery
-champion must not consume validation merely because a run reached its iteration target.
-
-### Deliverables
-
-- [x] Machine-enforced discovery promotion gates
-- [x] Tests showing that failing candidates cannot access validation
-- [x] A preregistered promotion protocol in the research documentation
-
-All three smoke runs were rejected before validation loading. See
-[`research/promotion-protocol.md`](research/promotion-protocol.md).
-
-## 1.6 Protect validation and holdout
-
-Keep the following roles fixed:
-
-- discovery supports repeated search and diagnosis
-- validation selects one champion from a preregistered candidate set
-- holdout evaluates that validation champion once
-
-Track holdout use at the hypothesis-family level, not only the run level. Starting a new
-run ID must not reset the research family's holdout status.
-
-Use more precise research statuses:
-
-- `infrastructure_only`
-- `rejected`
-- `inconclusive`
-- `feature_candidate`
-- `rule_candidate`
-- `accepted_alpha`
-
-A positive return in one window alone is not enough for `feature_candidate` status.
-
-### Deliverables
-
-- [x] A hypothesis-family identifier for every formal promotion attempt
-- [x] A family-level validation and holdout ledger
-- [x] A one-time holdout lock enforced by code
-- [x] Documented definitions for all research statuses
-
-Future formal runs must provide an immutable family ID and hypothesis before promotion.
-See [`research/experiment-ledger.md`](research/experiment-ledger.md).
-
-## Milestone 1 exit criteria
-
-**Status: complete.** The three smoke runs remain `infrastructure_only`; validation and
-holdout remain uninspected.
-
-Milestone 1 is complete when:
-
-- discovery ranking uses an execution model representative of promotion
-- gross, fee, and net performance can be separated
-- cost and delay sensitivity is reproducible
-- eligibility and promotion failures have explicit reasons
-- code prevents an unqualified run from reading validation or holdout
-- repeated evaluation of the same candidate produces identical results
-- the research protocol states when validation and holdout may be consumed
-
----
-
-# Milestone 2: Improve search capability
-
-## Goal
-
-Search several explicit market-structure hypotheses with enough diversity to find
-stable rule candidates without turning OpenEvolve into an unconstrained strategy
-generator.
-
-Begin this milestone only after Milestone 1 exit criteria are met.
-
-## 2.1 Replace the single-seed search with hypothesis lineages
-
-Create independent seed strategies and prompts for a small set of research families.
-Each family should express one falsifiable hypothesis and define the role of each input.
-Do not combine unrelated hypotheses in one evolution run.
-
-Initial families:
-
-### Trend continuation with microstructure confirmation
-
-Test whether medium-horizon upward price state predicts continuation only when signed
-trade flow and order book pressure agree. Spread and volatility may act as entry filters.
-
-### Down-streak pressure
-
-Extend the existing BTC-focused research with volatility, trade-density, signed-volume,
-and broad-trend gates. Treat BNB separately and do not require a universal three-asset
-rule.
-
-### Pullback and large-move exhaustion
-
-Test whether a long/flat strategy improves entry and exit timing by waiting for pullback
-completion or exiting when flow and order book confirmation weaken after a large move.
-
-### Deliverables
+Three sequential milestones. Better search is useful only after measurements are
+credible, and structural cleanup should support a proven workflow.
+
+| Milestone | Status |
+| --- | --- |
+| 1. Establish experiment credibility | complete |
+| 2. Improve search capability | in progress |
+| 3. Strengthen engineering structure | not started |
+
+Current research priorities are in [Current Research Focus](research/current-focus.md).
+Standing rules are in [`AGENTS.md`](../AGENTS.md) and the
+[repository guide](repository-guide.md).
+
+## Milestone 1: Establish experiment credibility (complete)
+
+The three OpenEvolve smoke runs (BTC, ETH, BNB, 30 iterations each) remain
+`infrastructure_only`. Validation and holdout remain uninspected.
+
+| Item | Outcome | Record |
+| --- | --- | --- |
+| 1.1 Diagnose the backtest harness | Fixed baselines and a discovery-only diagnostic command. | [Harness diagnostic](research/discovery-harness-diagnostic.md) |
+| 1.2 Align discovery and promotion execution | Fast profile screens candidates. Executable discovery (one-second quotes, one-second delay) sets final rank and must reproduce exactly. | [Execution parity](research/execution-parity.md) |
+| 1.3 Cost and delay sensitivity | Fees 0/5/10/15 bps, delays 0/1/5 s as diagnostics. BTC and ETH are cost-fragile. BNB is negative before fees. | [Cost and delay sensitivity](research/cost-delay-sensitivity.md) |
+| 1.4 Review eligibility gates | 10 to 30 trade thresholds give identical eligible sets. Rule stays at 20 closed positions and four active folds. | [Eligibility audit](research/eligibility-gate-audit.md) |
+| 1.5 Discovery promotion gates | Machine-enforced. All smoke runs were rejected before validation loading. | [Promotion protocol](research/promotion-protocol.md) |
+| 1.6 Protect validation and holdout | Family IDs, family-level ledger, one-time holdout lock, research statuses. | [Experiment ledger](research/experiment-ledger.md) |
+
+## Milestone 2: Improve search capability
+
+Goal: search several explicit market-structure hypotheses with enough diversity to
+find stable rule candidates, without turning OpenEvolve into an unconstrained
+strategy generator.
+
+### 2.1 Hypothesis lineages
+
+One falsifiable hypothesis per family, with independent seed strategies and
+prompts. Initial families: trend continuation with microstructure confirmation,
+down-streak pressure (BTC-focused, BNB separate), and pullback or large-move
+exhaustion.
 
 - [ ] A factor note or preregistration note for each lineage
 - [ ] A distinct initial program and prompt context for each lineage
 - [ ] Independent run IDs, random seeds, and result summaries
 - [ ] No claim of cross-instrument generality without explicit evidence
 
-## 2.2 Give strategies stateful turnover controls
+### 2.2 Stateful turnover controls
 
-Let candidates express trading persistence without changing position sizing or the
-long/flat constraint. Useful mechanisms include:
-
-- separate entry and exit thresholds
-- entry confirmation over multiple completed bars
-- minimum holding periods
-- cooldown after exit
-- hysteresis around noisy thresholds
-- regime transitions represented as explicit states
-
-These controls belong to the strategy search space. Turnover does not become a separate
-ranking objective; fees remain reflected in net daily Sharpe.
-
-### Deliverables
+Let candidates express persistence (separate entry and exit thresholds,
+multi-bar confirmation, minimum holds, cooldowns, hysteresis, explicit regime
+states) without changing sizing or the long/flat constraint. Turnover is not a
+ranking objective. Fees stay in net daily Sharpe.
 
 - [ ] Seed strategies that demonstrate valid state machines
 - [ ] Validator and sandbox coverage for mutable-state reset behavior
 - [ ] Diagnostics showing whether turnover controls improve gross-to-net conversion
 
-## 2.3 Run multiple independent searches
+### 2.3 Multiple independent searches
 
-Use multiple short and medium runs before allocating a large iteration budget. Prefer
-several independent lineages and random seeds over one 300-iteration path from a single
-MA seed.
-
-Suggested budget stages:
-
-1. 10 iterations for syntax and lifecycle checks
-2. 30 iterations for search-behavior smoke tests
-3. 50 to 100 iterations for discovery viability
-4. 300 iterations only after a lineage produces credible positive discovery evidence
-
-Compare whether independent runs converge on similar states and parameter ranges.
-
-### Deliverables
+Budget stages: 10 iterations for syntax and lifecycle, 30 for search behavior, 50
+to 100 for discovery viability, and 300 only after credible positive discovery
+evidence. Prefer several lineages and seeds over one long path.
 
 - [ ] A registered budget policy
 - [ ] Multi-seed summaries for each hypothesis family
 - [ ] Candidate similarity or rule-structure diagnostics
 - [ ] A recorded stop decision for lineages that remain negative
 
-## 2.4 Improve exploration without restoring rejected lineages
+### 2.4 Exploration without restoring rejected lineages
 
-The current archive size of one and exploitation-only parent sampling protect the search
-from OpenEvolve's fixed-low-score admission behavior, but they also narrow exploration.
-
-Test safer diversity mechanisms in this order:
-
-1. multiple independent runs from different hypothesis seeds
-2. independent random seeds within one hypothesis family
-3. diverse inspiration candidates while retaining one eligible parent lineage
-4. larger parent archives only after tests prove rejected candidates cannot become parents
-
-Do not change archive behavior without regression tests for syntax failures, lifecycle
-failures, and fixed rejected scores.
-
-### Deliverables
+Archive size one with exploitation-only parents protects against OpenEvolve's
+fixed-low-score admission but narrows exploration. Try, in order: independent
+hypothesis seeds, independent random seeds, diverse inspirations with one eligible
+parent lineage, and larger archives only after tests prove rejected candidates
+cannot become parents.
 
 - [ ] Tests for parent eligibility and archive admission
 - [ ] An experiment comparing independent runs with archive-based diversity
 - [ ] A documented exploration policy
 
-## 2.5 Improve trusted market states selectively
+### 2.5 Trusted market states
 
-Add normalized states only when a registered hypothesis needs them. Candidate strategies
-may use:
-
-- returns over fixed completed-bar horizons
-- realized volatility or normalized range
-- close location within the completed bar
-- volume and trade density relative to trailing baselines
-- changes and persistence in signed flow or order book imbalance
-- spread relative to its trailing baseline
-
-Calculate trusted features with end-of-bucket timestamps and no future data. Avoid turning
-`EvolutionMarketState` into an unreviewed feature dump.
-
-### Deliverables
+Add normalized states only when a registered hypothesis needs them, with
+end-of-bucket timestamps and no future data.
 
 - [ ] A hypothesis reference for every new trusted field
 - [ ] Timestamp and no-lookahead tests
 - [ ] Distribution and missing-data diagnostics
 - [ ] A schema-version migration when fields change
 
-## 2.6 Expand discovery coverage
+### 2.6 Discovery coverage
 
-Daily Sharpe estimated from roughly one month has high uncertainty. Expand discovery to
-multiple preregistered periods representing different volatility and trend conditions.
-Keep all folds chronological and keep validation and holdout unchanged until a new data
-protocol is registered.
+Expand discovery to preregistered periods covering different volatility and trend
+conditions. Keep folds chronological and validation and holdout unchanged.
 
-Report:
-
-- fold-level stability
-- bootstrap uncertainty for Sharpe
-- concentration in individual days
-- sensitivity to removing one day or one fold
-- number of evaluated and unique candidates
-
-Official ranking may remain net daily Sharpe. Statistical uncertainty and search-budget
-information belong in diagnostics and promotion gates.
-
-### Deliverables
-
-- [x] A documented extended discovery calendar
-  ([Market Regime Characterization](research/market-regime-characterization.md))
-- [x] Dataset manifests and hashes for every fold (supplemental audit reports under
-  `outputs/evolution-diagnostics/`)
-- [ ] Sharpe uncertainty and concentration diagnostics
+- [x] A documented extended discovery calendar ([Market Regime Characterization](research/market-regime-characterization.md))
+- [x] Dataset manifests and hashes for every fold (supplemental audit reports under `outputs/evolution-diagnostics/`)
+- [ ] Sharpe uncertainty and concentration diagnostics (bootstrap, day and fold removal)
 - [ ] A multiple-testing warning tied to the effective search budget
 
-## Milestone 2 exit criteria
+### Exit criteria
 
-Milestone 2 is complete when:
+- Each formal run belongs to a documented hypothesis family.
+- More than one valid seed lineage exists.
+- Strategies can reduce noisy switching through explicit state.
+- Executable discovery reranking governs final discovery selection.
+- Independent runs provide evidence about convergence and stability.
+- Extended discovery covers more than one market regime.
+- Iteration budgets increase only after a lineage meets registered viability gates.
 
-- each formal run belongs to a documented hypothesis family
-- the repository contains more than one valid seed lineage
-- strategies can reduce noisy switching through explicit state
-- executable discovery reranking governs final discovery selection
-- independent runs provide evidence about convergence and stability
-- extended discovery covers more than one market regime
-- iteration budgets increase only after a lineage meets registered viability gates
+## Milestone 3: Strengthen engineering structure
 
----
+Goal: make every formal experiment reproducible, auditable, and easy to operate
+without broad refactoring of working research code.
 
-# Milestone 3: Strengthen engineering structure
+### 3.1 Immutable run manifests
 
-## Goal
-
-Make every formal experiment reproducible, auditable, and easy to operate without broad
-refactoring of working research code.
-
-Engineering work in this milestone should preserve the protocol established in the first
-two milestones.
-
-## 3.1 Add immutable run manifests
-
-Every evolution run should write a `run_manifest.json` before evaluation begins. Record:
-
-- git commit and dirty-tree state
-- Python, Nautilus Trader, and OpenEvolve versions
-- Docker image tag and digest
-- dataset manifest hashes
-- config, prompt, and initial-program hashes
-- instrument and hypothesis-family ID
-- model names and weights
-- random seed and iteration budget
-- start and completion timestamps
-- parent run and checkpoint when resumed
-
-Resume must verify immutable fields rather than silently accepting a changed environment.
-
-### Deliverables
+Write `run_manifest.json` before evaluation: git commit and dirty state, Python,
+Nautilus, and OpenEvolve versions, Docker image digest, dataset, config, prompt,
+and initial-program hashes, family ID, models, seed, budget, timestamps, and the
+parent checkpoint on resume. Resume verifies immutable fields.
 
 - [ ] Run-manifest creation and verification
 - [ ] Resume rejection for incompatible manifests
 - [ ] Tests for hashes, versions, and dirty-tree behavior
 
-## 3.2 Add a durable experiment ledger
+### 3.2 Durable experiment ledger
 
-Create a repository-level ledger that records formal experiments without committing large
-checkpoints or generated datasets. Each entry should include:
-
-- hypothesis-family ID
-- instrument
-- run IDs
-- code commit
-- dataset and config identity
-- discovery conclusion
-- whether validation was inspected
-- whether holdout was consumed
-- final research status
-- links to the durable research note
-
-The ledger should make accidental reuse of consumed holdout data visible during review.
-
-### Deliverables
+A repository-level ledger of formal experiments: family ID, instrument, run IDs,
+commit, dataset and config identity, discovery conclusion, validation and holdout
+use, final status, and a link to the research note.
 
 - [ ] A documented ledger format
 - [ ] One entry for the current smoke framework marked `infrastructure_only`
 - [ ] A command or helper that validates ledger and run-manifest consistency
 
-## 3.3 Separate CLI responsibilities
+### 3.3 Separate CLI responsibilities
 
-Expose commands with narrow data access:
-
-- `build-data` prepares registered local datasets
-- `diagnose` reads discovery only
-- `evolve` reads discovery only
-- `rerank` performs executable discovery reranking
-- `validate` evaluates a preregistered candidate set
-- `promote` consumes holdout for the validation champion
-
-Enforce the boundary in code rather than relying on command-line discipline.
-
-### Deliverables
+`build-data`, `diagnose`, `evolve`, `rerank`, `validate`, and `promote` each get
+only the splits they need, enforced in code.
 
 - [ ] Documented commands and examples
 - [ ] Tests proving each command can access only its allowed splits
 - [ ] Clear resume and failure-recovery output
 
-## 3.4 Organize tests by responsibility
+### 3.4 Organize tests by responsibility
 
-Keep `unittest` and separate tests conceptually into:
-
-- unit tests for metrics, candidate checks, and state construction
-- contract tests for prompts, configuration, manifests, and split rules
-- sandbox tests for isolation and resource restrictions
-- integration tests for Nautilus backtests
-- optional catalog integration tests that require local credentials
-- research regression tests using small fixed fixtures
-
-Unit tests must not require S3, MinIO, OpenRouter, or the Docker network.
-
-### Deliverables
+Unit, contract, sandbox, Nautilus integration, optional catalog integration, and
+research regression groups. Unit tests need no S3, MinIO, LLM endpoint, or Docker
+network.
 
 - [ ] Documented test groups and commands
 - [ ] Stable fixtures for execution and metric regressions
 - [ ] Optional integration tests skipped cleanly when dependencies are unavailable
 
-## 3.5 Add repository preflight checks
+### 3.5 Repository preflight
 
-Before a formal run or commit, check:
-
-- the unit test suite passes
-- tracked files contain no credentials
-- `.env`, `.local/`, checkpoints, and generated outputs are not staged
-- data splits do not overlap
-- dataset schema versions and hashes match
-- the Docker image and dependency lock are current
-- prompt diff markers are treated as intentional content, not unresolved Git conflicts
-
-### Deliverables
+One command that checks tests, credentials, staged artifacts (`.env`, `.local/`,
+checkpoints, outputs), split overlap, dataset schema and hashes, image and lock
+currency, and treats prompt diff markers as intentional content.
 
 - [ ] A single local preflight command
 - [ ] Tests for secret and generated-artifact exclusions
 - [ ] Documentation for expected warnings and intentional exceptions
 
-## 3.6 Consolidate only proven duplication
+### 3.6 Consolidate only proven duplication
 
-Keep focused research reports separate. Extract shared code only when several active
-reports use the same behavior, such as:
-
-- fold summaries
-- cost sensitivity tables
-- event de-overlap
-- manifest metadata
-- deterministic CSV and Markdown output
-
-Avoid a broad report framework or configuration system unless concrete duplication makes
-current experiments harder to verify.
-
-### Deliverables
+Extract shared report code only when several active reports use the same
+behavior. No broad report framework.
 
 - [ ] A small inventory of repeated code before each refactor
 - [ ] Regression tests that preserve report outputs
 - [ ] No unrelated formatting or abstraction churn
 
-## Milestone 3 exit criteria
+### Exit criteria
 
-Milestone 3 is complete when:
-
-- a clean checkout can reproduce a formal run from its manifest and documented local data
-- every formal experiment appears in the ledger
-- CLI commands enforce discovery, validation, and holdout boundaries
-- resume detects incompatible code, configuration, prompts, images, or datasets
-- test groups separate local unit coverage from optional infrastructure integration
-- one preflight command catches credentials, generated artifacts, split errors, and failed tests
-
----
-
-# Global constraints
-
-These rules apply throughout the roadmap:
-
-- Keep the canonical alpha row limited to `ts_event`, `instrument_id`, `alpha_name`, and `value`.
-- Timestamp completed aggregation states at the end of the interval.
-- Keep prices, forward returns, thresholds, positions, fills, PnL, and drawdown in diagnostics or backtests.
-- Use Nautilus Trader objects and APIs for market data and simulation.
-- Read the finished catalog; do not trigger catalog conversion or write to S3.
-- Keep credentials outside tracked files.
-- Treat instrument-specific evidence as instrument-specific.
-- Do not inspect holdout to decide how to change a hypothesis, feature, fitness rule, or search configuration.
-- Record rejected and inconclusive experiments. A negative result is part of the research history.
-
-# Immediate next step
-
-Start Milestone 1 with the discovery harness diagnostic. Do not increase the current
-OpenEvolve iteration budget or inspect validation and holdout until the diagnostic,
-execution alignment, and promotion gates are complete.
+- A clean checkout can reproduce a formal run from its manifest and local data.
+- Every formal experiment appears in the ledger.
+- CLI commands enforce discovery, validation, and holdout boundaries.
+- Resume detects incompatible code, configuration, prompts, images, or datasets.
+- Test groups separate local unit coverage from optional infrastructure integration.
+- One preflight command catches credentials, generated artifacts, split errors, and failed tests.

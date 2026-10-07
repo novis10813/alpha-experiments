@@ -41,3 +41,5 @@ One status per factor note. Evolution families use the separate statuses in the
 - Check the [literature registry](literature/README.md) before researching a
   new paper.
 - When a bug or data issue changes a result, state the correction explicitly.
+- Record rejected and inconclusive results. Negative results are part of the
+  research history.

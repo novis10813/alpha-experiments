@@ -51,15 +51,14 @@ Build the sandbox image, then run a 30-iteration smoke:
 ```bash
 docker build -f evolution/docker/Dockerfile -t alpha-evolution-sandbox:0.2 .
 export EVOLUTION_SANDBOX_IMAGE=alpha-evolution-sandbox:0.2
-export OPENROUTER_API_KEY="<set outside the repository>"
 uv run python -m evolution evolve --instrument-id BTCUSDT.BINANCE --run-id smoke-001 --iterations 30
 ```
 
-Repeat sequentially for ETHUSDT and BNBUSDT. After checking candidate safety,
-aggregate-only artifacts, baselines, and checkpoint integrity, use the exact resume
-command printed by the runner with a total target of 300 iterations. A 429 or quota
-failure preserves checkpoints and prints the same resumable command. Config snapshots
-retain only the environment-variable reference; runner logs redact the key.
+The LLM endpoint, model, and key handling are described in the
+[repository guide](../repository-guide.md#configuration). `--iterations` is a total
+target. On failure the runner preserves checkpoints and prints a resume command,
+and `resume` defaults to the last approved target. Iteration budgets follow
+[ROADMAP 2.3](../ROADMAP.md#23-multiple-independent-searches).
 
 OpenEvolve 0.3.2 admits fixed-low-score programs while an archive still has empty
 slots. The parent archive is therefore intentionally size one with exploitation-only
@@ -69,15 +68,10 @@ rejected syntax or lifecycle candidate to poison the lineage. Promotion ranking 
 separate: it considers every checkpoint program that passed evaluation, not only the
 single parent archive slot.
 
-The OpenRouter ensemble uses `nvidia/nemotron-3-super-120b-a12b:free` at weight 0.8
-and `nvidia/nemotron-3-ultra-550b-a55b:free` at weight 0.2. OpenEvolve delegates
-HTTP retries to the OpenAI client, which applies capped exponential backoff with
-jitter and honors a reasonable `Retry-After` response on 429, as well as retrying
-transient 408, 409, 5xx, and transport failures. The configured single outer retry
-is deliberately bounded because OpenEvolve's retry count also configures the client's
-inner retries. Malformed diffs, empty responses, and non-transient provider errors
-remain failed iterations rather than being retried indefinitely; checkpoint/resume is
-the expected recovery path for longer experiments.
+The configured single outer retry is deliberately bounded because OpenEvolve's
+retry count also configures the OpenAI client's inner retries. Malformed diffs,
+empty responses, and non-transient provider errors remain failed iterations;
+checkpoint and resume is the recovery path.
 
 ## Promotion rule
 
@@ -103,5 +97,5 @@ and exported ten eligible candidates. The best discovery results were:
 | BNBUSDT.BINANCE | `smoke-20260830-01` | -7.0697 | -0.2827% | -0.4168% | 104 |
 
 These are negative discovery results, not alpha evidence. Validation and holdout were
-not inspected during the smoke phase. The checkpoint artifacts are suitable for
-resuming each search to a total target of 300 iterations before promotion.
+not inspected during the smoke phase. The runs are classified `infrastructure_only`
+in the [experiment ledger](experiment-ledger.md#smoke-run-classification).
