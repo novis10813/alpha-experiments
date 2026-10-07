@@ -141,7 +141,7 @@ def default_split_map(
     legacy_root: Path = DEFAULT_LEGACY_ROOT,
     supplemental_root: Path = DEFAULT_SUPPLEMENTAL_ROOT,
 ) -> dict[str, InstrumentSplits]:
-    """Split table from docs/superpowers/plans/2026-09-21-supplemental-data-market-regime.md."""
+    """Split table from docs/research/market-regime-characterization.md (Inputs)."""
     return {
         "BTCUSDT.BINANCE": InstrumentSplits(
             instrument_id="BTCUSDT.BINANCE",

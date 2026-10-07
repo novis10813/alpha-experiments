@@ -36,8 +36,7 @@ This file is the entry point for a new research session.
   passed the supplemental coverage audit. Market regime characterization is
   complete (Milestone 2.6): the trend axis was decided as rule C (magnitude
   AND path efficiency, 2x trailing median) and the regime map was generated.
-  See [Market Regime Characterization](market-regime-characterization.md)
-  and `docs/superpowers/plans/2026-09-21-supplemental-data-market-regime.md`.
+  See [Market Regime Characterization](market-regime-characterization.md).
 
 ## Next Useful Work
 

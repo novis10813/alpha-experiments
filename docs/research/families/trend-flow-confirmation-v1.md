@@ -1,5 +1,8 @@
 # Trend Flow Confirmation v1
 
+Status: holdout consumed, `rejected` (recorded 2026-09-21; the local
+family ledger is authoritative).
+
 ## Preregistration
 
 - **Family:** `trend-flow-confirmation-v1`

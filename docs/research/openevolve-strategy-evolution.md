@@ -44,6 +44,25 @@ the complete one-minute bucket. Its `ts_init` sorts after same-time quote/bar in
 Discovery, validation, and holdout are physically separate and each manifest records
 schema version, source bounds, row/gap counts, and file hashes.
 
+Build and audit a supplemental discovery split (executable profile, discovery
+only; `evolution/supplemental.py` refuses validation, holdout, and the quarantined
+day):
+
+```bash
+uv run python -m evolution build-supplemental-discovery \
+  --instrument-id <INST> --start <START> --end <END> \
+  --output-root .local/evolution-data-supplemental
+uv run python -m evolution audit-supplemental-discovery \
+  --instrument-id <INST> --split <SPLIT> --start <START> --end <END> \
+  --dataset-root .local/evolution-data-supplemental \
+  --output outputs/evolution-diagnostics/supplemental-audit-<SPLIT>-<inst-slug>.json
+```
+
+A split is usable only when its audit shows no `error`, continuous state and quote
+timestamps (or explicitly reported gaps), and empty `manifest_checks.issues`. The
+builder refuses to overwrite an existing directory, so remove a failed partial
+split manually and record why before rebuilding.
+
 ## Evolution commands
 
 Build the sandbox image, then run a 30-iteration smoke:

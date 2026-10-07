@@ -231,5 +231,3 @@ runs produce byte-identical JSON.
 - `tests/test_market_regime_report.py` — synthetic-fixture tests covering
   hand-computable classification, trailing-only baselines, insufficient-day
   exclusion, and source-split attribution.
-- Plan: `docs/superpowers/plans/2026-09-21-supplemental-data-market-regime.md`
-  (Slice 2).
