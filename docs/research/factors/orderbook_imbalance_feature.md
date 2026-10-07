@@ -4,12 +4,13 @@
 
 `feature_candidate`
 
-Raw order book imbalance has measurable short-horizon directional information,
-but the observed edge is small. Treat it as a microstructure feature,
-confirmation signal, execution-timing input, or regime-specific filter rather
-than a standalone tradable alpha.
+Raw order book imbalance ranks short-horizon returns and is stronger when book
+pressure, signed trade flow, and dense trading agree. The edge is about 1 to 2
+bps before costs and does not survive a 2 bps round-trip bid/ask screen on BTC,
+ETH, or BNB. Use it as a feature, confirmation or veto, execution-timing input,
+or regime filter, not as a standalone alpha.
 
-## Feature Definition
+## Definition
 
 - Alpha name: `orderbook_imbalance_depth10`
 - Formula: `(bid_size - ask_size) / (bid_size + ask_size)`
@@ -32,7 +33,288 @@ The first relationship reports used an 8,000 row visualization price overlay.
 That file was too sparse for 10s, 30s, and 60s forward-return diagnostics. The
 results below use the corrected 1 second last trade price source.
 
-## Commands
+## Findings
+
+All returns are percentages. "Spread" in ranking tables means decile 10 minus
+decile 1 mean forward return.
+
+### 1. Decile ranking
+
+Ranking is present after correcting the price source to 1 second trade prices.
+
+| Horizon | Bucket 10 - Bucket 1 mean return |
+| --- | ---: |
+| 10s | `0.0169%` |
+| 30s | `0.0185%` |
+| 60s | `0.0183%` |
+
+### 2. Quote-executable screen
+
+Positive imbalance enters long at the ask and exits at the future bid; negative
+imbalance enters short at the bid and exits at the future ask. Quotes are 1
+second best bid/ask from `OrderBookDepth10` (`604,800` rows). Gross edge is far
+below a 2 bps round trip, and a 5 to 10 second delay erodes most of it.
+
+| Horizon | Delay | Gross avg | Net @ 2 bps | Net @ 5 bps | Net @ 10 bps |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 10s | 0s | `0.00393%` | `-0.01607%` | `-0.04607%` | `-0.09607%` |
+| 30s | 0s | `0.00468%` | `-0.01532%` | `-0.04532%` | `-0.09532%` |
+| 60s | 0s | `0.00480%` | `-0.01520%` | `-0.04520%` | `-0.09520%` |
+| 10s | 1s | `0.00292%` | `-0.01708%` | `-0.04708%` | `-0.09708%` |
+| 30s | 1s | `0.00357%` | `-0.01643%` | `-0.04643%` | `-0.09643%` |
+| 60s | 1s | `0.00370%` | `-0.01630%` | `-0.04630%` | `-0.09630%` |
+| 10s | 5s | `0.00131%` | `-0.01869%` | `-0.04869%` | `-0.09869%` |
+| 30s | 5s | `0.00164%` | `-0.01836%` | `-0.04836%` | `-0.09836%` |
+| 60s | 5s | `0.00180%` | `-0.01820%` | `-0.04820%` | `-0.09820%` |
+| 10s | 10s | `0.00061%` | `-0.01939%` | `-0.04939%` | `-0.09939%` |
+| 30s | 10s | `0.00073%` | `-0.01927%` | `-0.04927%` | `-0.09927%` |
+| 60s | 10s | `0.00095%` | `-0.01906%` | `-0.04906%` | `-0.09906%` |
+
+### 3. Spread regime
+
+Same execution definition, `delay=0s`, `cost=2bps`. Entry-time spreads were very
+tight:
+
+| Spread threshold | Value |
+| --- | ---: |
+| median | `0.001573 bps` |
+| p75 | `0.001594 bps` |
+| p90 | `0.001603 bps` |
+
+Wider-spread snapshots carry slightly more gross edge, but no regime clears cost.
+Spread is execution context, not sufficient confirmation.
+
+| Regime | 10s gross | 10s net @ 2 bps | 30s gross | 30s net @ 2 bps | 60s gross | 60s net @ 2 bps |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| low spread | `0.00367%` | `-0.01633%` | `0.00470%` | `-0.01530%` | `0.00501%` | `-0.01499%` |
+| high spread | `0.00419%` | `-0.01581%` | `0.00467%` | `-0.01533%` | `0.00460%` | `-0.01540%` |
+| top quartile spread | `0.00450%` | `-0.01550%` | `0.00466%` | `-0.01534%` | `0.00453%` | `-0.01547%` |
+| top decile spread | `0.00531%` | `-0.01469%` | `0.00530%` | `-0.01470%` | `0.00524%` | `-0.01476%` |
+| below top decile | `0.00377%` | `-0.01623%` | `0.00461%` | `-0.01539%` | `0.00475%` | `-0.01525%` |
+
+### 4. Extreme imbalance events
+
+Snapshot-level events have higher hit rates but small mean returns (trade
+prices):
+
+| Threshold | Side | 30s mean directional return | 30s directional hit rate | 60s mean directional return | 60s directional hit rate |
+| --- | --- | ---: | ---: | ---: | ---: |
+| `0.95` | positive | `0.00933%` | `63.65%` | `0.00914%` | `58.85%` |
+| `0.95` | negative | `0.00984%` | `64.73%` | `0.00975%` | `59.76%` |
+| `0.98` | positive | `0.01074%` | `64.42%` | `0.01035%` | `58.91%` |
+| `0.98` | negative | `0.01101%` | `65.69%` | `0.01086%` | `60.27%` |
+
+Collapsing consecutive same-side extremes into one event at the first timestamp
+reduced `135,676` snapshot-threshold observations to `66,774` clustered events.
+Quote-executable returns at `cost=2bps` still do not clear cost:
+
+| Threshold | Side | Events | Mean cluster length | 10s gross | 10s net @ 2 bps | 30s gross | 30s net @ 2 bps | 60s gross | 60s net @ 2 bps |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `0.95` | positive | `20,494` | `2.25` | `0.00939%` | `-0.01061%` | `0.00961%` | `-0.01039%` | `0.00947%` | `-0.01053%` |
+| `0.95` | negative | `20,891` | `2.22` | `0.00973%` | `-0.01027%` | `0.01066%` | `-0.00935%` | `0.01096%` | `-0.00904%` |
+| `0.98` | positive | `12,539` | `1.72` | `0.01084%` | `-0.00916%` | `0.01123%` | `-0.00878%` | `0.01072%` | `-0.00928%` |
+| `0.98` | negative | `12,848` | `1.69` | `0.01082%` | `-0.00918%` | `0.01160%` | `-0.00840%` | `0.01192%` | `-0.00808%` |
+
+### 5. Trade volume and density
+
+Interaction signal `imbalance * (log1p(volume) / mean(log1p(volume)))` on 1
+second buckets did not improve ranking:
+
+| Horizon | Raw imbalance spread | Volume interaction spread |
+| --- | ---: | ---: |
+| 10s | `0.01685%` | `0.01318%` |
+| 30s | `0.01853%` | `0.01392%` |
+| 60s | `0.01834%` | `0.01350%` |
+
+Volume works better as a regime split (log-volume intensity above or below
+`1.0`):
+
+| Horizon | High-volume spread | Low-volume spread |
+| --- | ---: | ---: |
+| 10s | `0.02061%` | `0.01531%` |
+| 30s | `0.02080%` | `0.01746%` |
+| 60s | `0.02132%` | `0.01710%` |
+
+Trade density (trade ticks per 1 second bucket) is highly skewed:
+
+| Metric | Trades per second |
+| --- | ---: |
+| min | `1` |
+| median | `4` |
+| mean | `44.17` |
+| p90 | `148` |
+| p99 | `440` |
+| max | `9,188` |
+
+Imbalance is more informative when trading is dense. Median split, then top
+decile versus the rest:
+
+| Horizon | Low-density spread | High-density spread |
+| --- | ---: | ---: |
+| 10s | `0.01256%` | `0.01862%` |
+| 30s | `0.01491%` | `0.01989%` |
+| 60s | `0.01522%` | `0.01955%` |
+
+| Horizon | Top-decile density spread | Rest-of-sample spread |
+| --- | ---: | ---: |
+| 10s | `0.02331%` | `0.01569%` |
+| 30s | `0.02360%` | `0.01769%` |
+| 60s | `0.02477%` | `0.01745%` |
+
+Density measures marketable order arrival, not participant type. It needs signed
+flow to separate pressure continuation from passive absorption.
+
+### 6. Signed flow quadrants
+
+Trade direction comes from a tick rule: price up from the previous trade is
+buy-initiated, price down is sell-initiated, and an unchanged price carries the
+previous sign. Rows with zero signed flow are excluded. Directional hit rates
+were above 53% in all quadrants. Confirmed pressure (book and flow agree) beats
+absorption (book and flow disagree), so imbalance behaves as a pressure
+continuation feature.
+
+`trade_imbalance`:
+
+| Regime | 10s directional return | 30s directional return | 60s directional return |
+| --- | ---: | ---: | ---: |
+| bid-heavy + buy flow | `0.00470%` | `0.00518%` | `0.00501%` |
+| ask-heavy + sell flow | `0.00490%` | `0.00571%` | `0.00593%` |
+| bid-heavy + sell flow | `0.00277%` | `0.00313%` | `0.00302%` |
+| ask-heavy + buy flow | `0.00299%` | `0.00382%` | `0.00446%` |
+
+`volume_imbalance`:
+
+| Regime | 10s directional return | 30s directional return | 60s directional return |
+| --- | ---: | ---: | ---: |
+| bid-heavy + buy volume | `0.00459%` | `0.00509%` | `0.00495%` |
+| ask-heavy + sell volume | `0.00468%` | `0.00547%` | `0.00577%` |
+| bid-heavy + sell volume | `0.00308%` | `0.00347%` | `0.00329%` |
+| ask-heavy + buy volume | `0.00323%` | `0.00406%` | `0.00460%` |
+
+### 7. Dense signed flow
+
+Quadrants split at the median joined trade count: `4` trades/sec for
+`trade_imbalance`, `3` trades/sec for `volume_imbalance`. High-density confirmed
+pressure is strongest, especially ask-heavy book with sell flow. These are trade
+price returns, not quote-executable.
+
+`trade_imbalance`:
+
+| Density | Regime | 10s | 30s | 60s |
+| --- | --- | ---: | ---: | ---: |
+| low | bid-heavy + buy flow | `0.00332%` | `0.00419%` | `0.00455%` |
+| low | ask-heavy + sell flow | `0.00340%` | `0.00438%` | `0.00446%` |
+| low | bid-heavy + sell flow | `0.00268%` | `0.00318%` | `0.00327%` |
+| low | ask-heavy + buy flow | `0.00284%` | `0.00380%` | `0.00457%` |
+| high | bid-heavy + buy flow | `0.00554%` | `0.00577%` | `0.00529%` |
+| high | ask-heavy + sell flow | `0.00581%` | `0.00653%` | `0.00683%` |
+| high | bid-heavy + sell flow | `0.00298%` | `0.00301%` | `0.00244%` |
+| high | ask-heavy + buy flow | `0.00331%` | `0.00388%` | `0.00424%` |
+
+`volume_imbalance`:
+
+| Density | Regime | 10s | 30s | 60s |
+| --- | --- | ---: | ---: | ---: |
+| low | bid-heavy + buy volume | `0.00318%` | `0.00405%` | `0.00439%` |
+| low | ask-heavy + sell volume | `0.00323%` | `0.00414%` | `0.00433%` |
+| low | bid-heavy + sell volume | `0.00269%` | `0.00333%` | `0.00345%` |
+| low | ask-heavy + buy volume | `0.00283%` | `0.00370%` | `0.00436%` |
+| high | bid-heavy + buy volume | `0.00529%` | `0.00560%` | `0.00523%` |
+| high | ask-heavy + sell volume | `0.00540%` | `0.00613%` | `0.00648%` |
+| high | bid-heavy + sell volume | `0.00348%` | `0.00361%` | `0.00311%` |
+| high | ask-heavy + buy volume | `0.00371%` | `0.00449%` | `0.00487%` |
+
+### 8. 1 minute confirmed pressure persistence
+
+Each imbalance event joins the latest known signed trade feature: confirmed bid
+pressure `+1`, confirmed ask pressure `-1`, disagreement or zero flow `0`.
+`value = mean(contribution)` over the completed minute, timestamped at the
+minute end. BTC produced `10,080` rows. The top-minus-bottom spread stays
+positive at 1m, 3m, and 5m, clearest at 1m, but middle deciles are not
+monotonic.
+
+Trade-count flow:
+
+| Horizon | Low bucket mean return | High bucket mean return | High - low spread |
+| --- | ---: | ---: | ---: |
+| 60s | `-0.00346%` | `0.00509%` | `0.00855%` |
+| 180s | `-0.00448%` | `0.00092%` | `0.00540%` |
+| 300s | `-0.00187%` | `0.00232%` | `0.00419%` |
+
+Signed-volume flow:
+
+| Horizon | Low bucket mean return | High bucket mean return | High - low spread |
+| --- | ---: | ---: | ---: |
+| 60s | `-0.00302%` | `0.00474%` | `0.00775%` |
+| 180s | `-0.00339%` | `0.00144%` | `0.00483%` |
+| 300s | `-0.00264%` | `0.00395%` | `0.00659%` |
+
+### 9. Multi-instrument check
+
+Same window, same quote-executable screen at 0 delay. The effect is weaker on
+ETH and materially weaker on BNB. None clears 2 bps.
+
+| Instrument | Horizon | Gross avg | Net @ 2 bps |
+| --- | ---: | ---: | ---: |
+| BTCUSDT | 10s | `0.00393%` | `-0.01607%` |
+| BTCUSDT | 30s | `0.00468%` | `-0.01532%` |
+| BTCUSDT | 60s | `0.00480%` | `-0.01520%` |
+| ETHUSDT | 10s | `0.00361%` | `-0.01639%` |
+| ETHUSDT | 30s | `0.00399%` | `-0.01601%` |
+| ETHUSDT | 60s | `0.00380%` | `-0.01620%` |
+| BNBUSDT | 10s | `0.00197%` | `-0.01803%` |
+| BNBUSDT | 30s | `0.00216%` | `-0.01784%` |
+| BNBUSDT | 60s | `0.00194%` | `-0.01806%` |
+
+Pressure persistence spread by instrument. It generalizes to ETH but not BNB,
+so the feature is instrument- and regime-dependent.
+
+| Instrument | Flow | 60s | 180s | 300s |
+| --- | --- | ---: | ---: | ---: |
+| BTCUSDT | trade-count | `0.00855%` | `0.00540%` | `0.00419%` |
+| BTCUSDT | volume | `0.00775%` | `0.00483%` | `0.00659%` |
+| ETHUSDT | trade-count | `0.00126%` | `0.00623%` | `0.00778%` |
+| ETHUSDT | volume | `0.00343%` | `0.00431%` | `0.00490%` |
+| BNBUSDT | trade-count | `-0.00068%` | `-0.00230%` | `-0.00430%` |
+| BNBUSDT | volume | `0.00089%` | `0.00132%` | `-0.00040%` |
+
+## Uses
+
+- Input feature in a multi-factor model.
+- Confirmation or veto for another alpha.
+- Execution timing, position sizing, or aggressiveness adjustment.
+- Regime filter combined with spread, volatility, volume, or depth.
+
+The rule-focused follow-up is [Down-Streak Pressure](down_streak_pressure.md).
+
+## Caveats
+
+- Ranking, event-study, and interaction diagnostics use trade prices.
+  Executable screens use bid/ask quotes but do not model queue position,
+  partial fills, maker/taker fee schedules, or adverse selection.
+- Most diagnostics cover one week of BTC. Only the executable and
+  pressure-persistence checks were repeated for ETH and BNB.
+- The 8,000 row visualization price CSV is not valid for short-horizon returns.
+- Snapshot diagnostics contain adjacent, highly correlated observations.
+  Clustering fixes this only for the extreme-event definition.
+
+## Next work
+
+No more broad raw imbalance reports. Targeted options:
+
+- Realized-volatility and recent-return regime splits, if a model uses
+  imbalance as one feature among several.
+- Catalog aggressor-side data in place of the tick rule, if it becomes
+  available.
+- Imbalance inside a multi-factor model or execution policy as confirmation,
+  veto, sizing, or aggressiveness.
+
+## Reproduce
+
+Generated files follow
+`outputs/{alphas,market,reports}/<name>_BTCUSDT_2026-06-18_2026-06-25*.{csv,html}`.
+Commands for the 1 second quote export and the quote-executable, spread-regime,
+clustered-extreme, and dense-signed-flow screens were not recorded.
 
 Generate the alpha:
 
@@ -166,475 +448,3 @@ Repeat with `--flow-column volume_imbalance`,
 `--alpha-name confirmed_volume_pressure_persistence_1m`, and output
 `outputs/alphas/confirmed_volume_pressure_persistence_BTCUSDT_2026-06-18_2026-06-25_1m.csv`
 for the signed volume version.
-
-## Reports
-
-- 10s relationship: `outputs/reports/orderbook_imbalance_relationship_BTCUSDT_2026-06-18_2026-06-25_10s_1s_prices.html`
-- 30s relationship: `outputs/reports/orderbook_imbalance_relationship_BTCUSDT_2026-06-18_2026-06-25_30s_1s_prices.html`
-- 60s relationship: `outputs/reports/orderbook_imbalance_relationship_BTCUSDT_2026-06-18_2026-06-25_60s_1s_prices.html`
-- Extreme event study: `outputs/reports/orderbook_imbalance_extreme_BTCUSDT_2026-06-18_2026-06-25.html`
-- Volume interaction 10s: `outputs/reports/orderbook_imbalance_volume_interaction_BTCUSDT_2026-06-18_2026-06-25_10s.html`
-- Volume interaction 30s: `outputs/reports/orderbook_imbalance_volume_interaction_BTCUSDT_2026-06-18_2026-06-25_30s.html`
-- Volume interaction 60s: `outputs/reports/orderbook_imbalance_volume_interaction_BTCUSDT_2026-06-18_2026-06-25_60s.html`
-- Trade density regime: `outputs/reports/orderbook_imbalance_trade_density_BTCUSDT_2026-06-18_2026-06-25.html`
-- Signed trade-count flow absorption: `outputs/reports/orderbook_imbalance_signed_flow_absorption_BTCUSDT_2026-06-18_2026-06-25.html`
-- Signed volume flow absorption: `outputs/reports/orderbook_imbalance_signed_volume_absorption_BTCUSDT_2026-06-18_2026-06-25.html`
-- Confirmed pressure persistence 1m relationship: `outputs/reports/confirmed_pressure_persistence_relationship_BTCUSDT_2026-06-18_2026-06-25_1m_3m_5m.html`
-- Confirmed volume pressure persistence 1m relationship: `outputs/reports/confirmed_volume_pressure_persistence_relationship_BTCUSDT_2026-06-18_2026-06-25_1m_3m_5m.html`
-- Quote-based executable return screen: `outputs/reports/orderbook_imbalance_executable_returns_BTCUSDT_2026-06-18_2026-06-25.html`
-- Spread regime executable return screen: `outputs/reports/orderbook_imbalance_spread_regime_BTCUSDT_2026-06-18_2026-06-25.html`
-- Clustered extreme executable return screen: `outputs/reports/orderbook_imbalance_clustered_extreme_BTCUSDT_2026-06-18_2026-06-25.html`
-- Dense signed trade-count flow screen: `outputs/reports/orderbook_imbalance_dense_signed_flow_BTCUSDT_2026-06-18_2026-06-25.html`
-- Dense signed volume flow screen: `outputs/reports/orderbook_imbalance_dense_signed_volume_flow_BTCUSDT_2026-06-18_2026-06-25.html`
-
-## Key Findings
-
-Decile bucket ranking is present after correcting the price source:
-
-| Horizon | Bucket 10 - Bucket 1 mean return |
-| --- | ---: |
-| 10s | `0.0169%` |
-| 30s | `0.0185%` |
-| 60s | `0.0183%` |
-
-Quote-based executable-return screening was added using 1 second best bid/ask
-quotes exported from `OrderBookDepth10`. Directional execution assumes positive
-imbalance enters long at the current ask and exits at the future bid; negative
-imbalance enters short at the current bid and exits at the future ask. This is a
-more conservative screen than trade-price forward returns, but still does not
-model queue position, partial fills, or adverse selection.
-
-The 7 day quote export produced `604,800` 1 second quote rows. Across all
-imbalance snapshots, gross executable directional return was positive but far
-below even modest round-trip costs:
-
-| Horizon | Delay | Gross avg | Net @ 2 bps | Net @ 5 bps | Net @ 10 bps |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| 10s | 0s | `0.00393%` | `-0.01607%` | `-0.04607%` | `-0.09607%` |
-| 30s | 0s | `0.00468%` | `-0.01532%` | `-0.04532%` | `-0.09532%` |
-| 60s | 0s | `0.00480%` | `-0.01520%` | `-0.04520%` | `-0.09520%` |
-| 10s | 1s | `0.00292%` | `-0.01708%` | `-0.04708%` | `-0.09708%` |
-| 30s | 1s | `0.00357%` | `-0.01643%` | `-0.04643%` | `-0.09643%` |
-| 60s | 1s | `0.00370%` | `-0.01630%` | `-0.04630%` | `-0.09630%` |
-| 10s | 5s | `0.00131%` | `-0.01869%` | `-0.04869%` | `-0.09869%` |
-| 30s | 5s | `0.00164%` | `-0.01836%` | `-0.04836%` | `-0.09836%` |
-| 60s | 5s | `0.00180%` | `-0.01820%` | `-0.04820%` | `-0.09820%` |
-| 10s | 10s | `0.00061%` | `-0.01939%` | `-0.04939%` | `-0.09939%` |
-| 30s | 10s | `0.00073%` | `-0.01927%` | `-0.04927%` | `-0.09927%` |
-| 60s | 10s | `0.00095%` | `-0.01906%` | `-0.04906%` | `-0.09906%` |
-
-Interpretation: the raw imbalance edge does not survive a simple bid/ask
-execution screen with a 2 bps round-trip cost assumption. It is also materially
-latency-sensitive: delaying entry by 5 to 10 seconds erodes most of the already
-small gross edge. This reinforces treating raw imbalance as a feature or timing
-input rather than a direct taker-style trading rule.
-
-Spread regime was then tested using the same quote-executable return definition,
-with `delay=0s` and `cost=2bps`. Entry-time spread thresholds in the 1 second
-quote sample were very tight:
-
-| Spread threshold | Value |
-| --- | ---: |
-| median | `0.001573 bps` |
-| p75 | `0.001594 bps` |
-| p90 | `0.001603 bps` |
-
-Top-spread regimes had slightly higher gross directional returns, especially at
-10s and 30s, but they still did not survive a 2 bps round-trip cost:
-
-| Regime | 10s gross | 10s net @ 2 bps | 30s gross | 30s net @ 2 bps | 60s gross | 60s net @ 2 bps |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| low spread | `0.00367%` | `-0.01633%` | `0.00470%` | `-0.01530%` | `0.00501%` | `-0.01499%` |
-| high spread | `0.00419%` | `-0.01581%` | `0.00467%` | `-0.01533%` | `0.00460%` | `-0.01540%` |
-| top quartile spread | `0.00450%` | `-0.01550%` | `0.00466%` | `-0.01534%` | `0.00453%` | `-0.01547%` |
-| top decile spread | `0.00531%` | `-0.01469%` | `0.00530%` | `-0.01470%` | `0.00524%` | `-0.01476%` |
-| below top decile | `0.00377%` | `-0.01623%` | `0.00461%` | `-0.01539%` | `0.00475%` | `-0.01525%` |
-
-Interpretation: spread does not rescue raw imbalance as a taker-style signal.
-Higher-spread snapshots concentrate somewhat better gross edge, but the effect is
-too small relative to even a modest cost assumption. Spread remains useful as a
-risk/execution context variable, not as sufficient confirmation by itself.
-
-Extreme imbalance events have higher directional hit rates, but the average
-directional return remains small:
-
-| Threshold | Side | 30s mean directional return | 30s directional hit rate | 60s mean directional return | 60s directional hit rate |
-| --- | --- | ---: | ---: | ---: | ---: |
-| `0.95` | positive | `0.00933%` | `63.65%` | `0.00914%` | `58.85%` |
-| `0.95` | negative | `0.00984%` | `64.73%` | `0.00975%` | `59.76%` |
-| `0.98` | positive | `0.01074%` | `64.42%` | `0.01035%` | `58.91%` |
-| `0.98` | negative | `0.01101%` | `65.69%` | `0.01086%` | `60.27%` |
-
-The initial extreme event study counted individual depth snapshots. A stricter
-clustered version was added to collapse consecutive same-side extreme imbalance
-snapshots into one event at the first timestamp in the run. Across thresholds
-`0.95` and `0.98`, raw extreme rows dropped from `135,676` snapshot-threshold
-observations to `66,774` clustered events.
-
-Using quote-executable directional returns with `cost=2bps`, clustered extremes
-still did not clear costs:
-
-| Threshold | Side | Events | Mean cluster length | 10s gross | 10s net @ 2 bps | 30s gross | 30s net @ 2 bps | 60s gross | 60s net @ 2 bps |
-| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| `0.95` | positive | `20,494` | `2.25` | `0.00939%` | `-0.01061%` | `0.00961%` | `-0.01039%` | `0.00947%` | `-0.01053%` |
-| `0.95` | negative | `20,891` | `2.22` | `0.00973%` | `-0.01027%` | `0.01066%` | `-0.00935%` | `0.01096%` | `-0.00904%` |
-| `0.98` | positive | `12,539` | `1.72` | `0.01084%` | `-0.00916%` | `0.01123%` | `-0.00878%` | `0.01072%` | `-0.00928%` |
-| `0.98` | negative | `12,848` | `1.69` | `0.01082%` | `-0.00918%` | `0.01160%` | `-0.00840%` | `0.01192%` | `-0.00808%` |
-
-Interpretation: clustering improves statistical hygiene and raises the apparent
-gross event edge relative to all snapshots, but the result remains below a 2 bps
-round-trip cost assumption. Extreme imbalance is useful as a state filter; it is
-not yet an executable standalone trigger.
-
-Trade volume interaction was tested with 1 second trade features:
-
-- `price`: last trade price in the 1 second bucket
-- `volume`: summed trade size in the 1 second bucket
-- interaction signal: `imbalance * (log1p(volume) / mean(log1p(volume)))`
-
-The multiplicative interaction did not improve the decile spread:
-
-| Horizon | Raw imbalance spread | Volume interaction spread |
-| --- | ---: | ---: |
-| 10s | `0.01685%` | `0.01318%` |
-| 30s | `0.01853%` | `0.01392%` |
-| 60s | `0.01834%` | `0.01350%` |
-
-Volume looked more useful as a regime filter. Splitting by log-volume intensity
-above or below `1.0` gave:
-
-| Horizon | High-volume spread | Low-volume spread |
-| --- | ---: | ---: |
-| 10s | `0.02061%` | `0.01531%` |
-| 30s | `0.02080%` | `0.01746%` |
-| 60s | `0.02132%` | `0.01710%` |
-
-Trade density was tested as the number of trade ticks in the 1 second feature
-bucket. Density is distinct from trade volume: it measures how many trades
-occurred, not how much size traded.
-
-The 1 second trade count distribution was highly skewed:
-
-| Metric | Trades per second |
-| --- | ---: |
-| min | `1` |
-| median | `4` |
-| mean | `44.17` |
-| p90 | `148` |
-| p99 | `440` |
-| max | `9,188` |
-
-Median-split density regimes showed higher imbalance value in denser periods:
-
-| Horizon | Low-density spread | High-density spread |
-| --- | ---: | ---: |
-| 10s | `0.01256%` | `0.01862%` |
-| 30s | `0.01491%` | `0.01989%` |
-| 60s | `0.01522%` | `0.01955%` |
-
-The top decile density regime was stronger:
-
-| Horizon | Top-decile density spread | Rest-of-sample spread |
-| --- | ---: | ---: |
-| 10s | `0.02331%` | `0.01569%` |
-| 30s | `0.02360%` | `0.01769%` |
-| 60s | `0.02477%` | `0.01745%` |
-
-This supports the interpretation that order book imbalance is more informative
-when trading is dense. The effect is still modest, but trade density is a better
-regime variable than the direct multiplicative volume interaction tested above.
-
-## Trade Density Interpretation
-
-High trade density means the short-horizon marketable order arrival rate is high.
-It should not be interpreted directly as "more retail flow" or "more institutional
-flow." With the current data, trade count alone does not identify participant
-type.
-
-More defensible interpretations:
-
-- New information or cross-market pressure may be getting incorporated.
-- Liquidity taking is active, with many marketable orders hitting the book.
-- A large parent order may be split into many child trades.
-- Market makers, liquidations, arbitrage, and execution algorithms may all be
-  contributing to the observed trade count.
-
-The useful research question is therefore not "are these retail traders?" but:
-
-```text
-Who is taking liquidity, on which side, and is passive liquidity absorbing or
-being consumed by that flow?
-```
-
-Trade density alone says activity is high. To infer whether order book imbalance
-is pressure continuation or absorption, it needs to be combined with signed trade
-flow.
-
-## Next Hypothesis: Signed Flow And Absorption
-
-The next experiment should estimate trade direction and compare it with order
-book imbalance. If the catalog does not expose aggressor side, start with a tick
-rule:
-
-```text
-price up from previous trade   => buy-initiated
-price down from previous trade => sell-initiated
-same price                     => carry forward previous sign
-```
-
-From that, build 1 second signed trade features:
-
-```text
-buy_trade_count
-sell_trade_count
-buy_volume
-sell_volume
-signed_trade_count = buy_trade_count - sell_trade_count
-signed_volume = buy_volume - sell_volume
-trade_imbalance = (buy_trade_count - sell_trade_count) / (buy_trade_count + sell_trade_count)
-volume_imbalance = (buy_volume - sell_volume) / (buy_volume + sell_volume)
-```
-
-Then test four regimes:
-
-| Book state | Trade flow state | Interpretation to test |
-| --- | --- | --- |
-| bid-heavy | buy-initiated flow | Demand pressure confirmed; possible continuation. |
-| ask-heavy | sell-initiated flow | Supply pressure confirmed; possible continuation. |
-| bid-heavy | sell-initiated flow | Bids absorbing sells; possible support or absorption. |
-| ask-heavy | buy-initiated flow | Asks absorbing buys; possible resistance or absorption. |
-
-This reframes the factor from a simple directional state variable into a
-microstructure framework:
-
-```text
-order book imbalance + trade density + signed trade flow
-=> pressure continuation vs passive liquidity absorption
-```
-
-## Signed Flow Absorption Results
-
-Signed flow was estimated from trade ticks using a tick rule:
-
-```text
-price up from previous trade   => buy-initiated
-price down from previous trade => sell-initiated
-same price                     => carry forward previous sign
-```
-
-Rows with zero signed flow were excluded from the four-quadrant report. The
-first pass used `trade_imbalance`:
-
-| Regime | 10s directional return | 30s directional return | 60s directional return |
-| --- | ---: | ---: | ---: |
-| bid-heavy + buy flow | `0.00470%` | `0.00518%` | `0.00501%` |
-| ask-heavy + sell flow | `0.00490%` | `0.00571%` | `0.00593%` |
-| bid-heavy + sell flow | `0.00277%` | `0.00313%` | `0.00302%` |
-| ask-heavy + buy flow | `0.00299%` | `0.00382%` | `0.00446%` |
-
-Directional hit rates were above 53% in all four regimes. Confirmed pressure
-regimes were stronger than absorption regimes, especially at 10s and 30s.
-
-The same report using `volume_imbalance` showed the same ordering:
-
-| Regime | 10s directional return | 30s directional return | 60s directional return |
-| --- | ---: | ---: | ---: |
-| bid-heavy + buy volume | `0.00459%` | `0.00509%` | `0.00495%` |
-| ask-heavy + sell volume | `0.00468%` | `0.00547%` | `0.00577%` |
-| bid-heavy + sell volume | `0.00308%` | `0.00347%` | `0.00329%` |
-| ask-heavy + buy volume | `0.00323%` | `0.00406%` | `0.00460%` |
-
-Interpretation: signed flow confirms that imbalance behaves more like a
-short-horizon pressure continuation feature than a pure absorption/reversal
-feature. Absorption states still have positive directional returns in the book
-direction, but the edge is smaller than when book imbalance and active flow agree.
-
-## Dense Signed Flow Results
-
-The signed-flow quadrants were then split by event-time trade density. This
-tests whether pressure confirmation is specifically stronger when many trades
-are arriving in the 1 second feature bucket.
-
-For `trade_imbalance`, the density threshold was the median joined trade count:
-`4` trades/sec. Directional returns:
-
-| Density | Regime | 10s | 30s | 60s |
-| --- | --- | ---: | ---: | ---: |
-| low | bid-heavy + buy flow | `0.00332%` | `0.00419%` | `0.00455%` |
-| low | ask-heavy + sell flow | `0.00340%` | `0.00438%` | `0.00446%` |
-| low | bid-heavy + sell flow | `0.00268%` | `0.00318%` | `0.00327%` |
-| low | ask-heavy + buy flow | `0.00284%` | `0.00380%` | `0.00457%` |
-| high | bid-heavy + buy flow | `0.00554%` | `0.00577%` | `0.00529%` |
-| high | ask-heavy + sell flow | `0.00581%` | `0.00653%` | `0.00683%` |
-| high | bid-heavy + sell flow | `0.00298%` | `0.00301%` | `0.00244%` |
-| high | ask-heavy + buy flow | `0.00331%` | `0.00388%` | `0.00424%` |
-
-For `volume_imbalance`, the density threshold was `3` trades/sec. The same
-ordering held:
-
-| Density | Regime | 10s | 30s | 60s |
-| --- | --- | ---: | ---: | ---: |
-| low | bid-heavy + buy volume | `0.00318%` | `0.00405%` | `0.00439%` |
-| low | ask-heavy + sell volume | `0.00323%` | `0.00414%` | `0.00433%` |
-| low | bid-heavy + sell volume | `0.00269%` | `0.00333%` | `0.00345%` |
-| low | ask-heavy + buy volume | `0.00283%` | `0.00370%` | `0.00436%` |
-| high | bid-heavy + buy volume | `0.00529%` | `0.00560%` | `0.00523%` |
-| high | ask-heavy + sell volume | `0.00540%` | `0.00613%` | `0.00648%` |
-| high | bid-heavy + sell volume | `0.00348%` | `0.00361%` | `0.00311%` |
-| high | ask-heavy + buy volume | `0.00371%` | `0.00449%` | `0.00487%` |
-
-Interpretation: density is useful mainly when combined with signed flow. The
-strongest states are high-density confirmed pressure regimes, especially
-ask-heavy book plus sell flow. Absorption regimes remain weaker. This supports
-continuing with pressure-confirmation filters, but these are still trade-price
-directional returns and should be screened through quote-executable costs before
-being treated as tradable.
-
-## 1 Minute Confirmed Pressure Persistence
-
-The next test aggregated the 1 second signed-flow confirmation into 1 minute
-canonical alpha rows. For each imbalance event, the latest known signed trade
-feature was joined. Confirmed bid pressure contributed `+1`, confirmed ask
-pressure contributed `-1`, and disagreement or zero flow contributed `0`.
-
-```text
-value = mean(confirmed_pressure_contribution) over the completed 1 minute bucket
-```
-
-The alpha timestamp is the end of the 1 minute bucket, because the full bucket is
-only knowable after the minute completes.
-
-The trade-count flow version produced `10,080` rows, one row for each minute in
-the 7 day window. Decile 10 minus decile 1 mean forward-return spread:
-
-| Horizon | Low bucket mean return | High bucket mean return | High - low spread |
-| --- | ---: | ---: | ---: |
-| 60s | `-0.00346%` | `0.00509%` | `0.00855%` |
-| 180s | `-0.00448%` | `0.00092%` | `0.00540%` |
-| 300s | `-0.00187%` | `0.00232%` | `0.00419%` |
-
-The signed-volume flow version showed the same direction:
-
-| Horizon | Low bucket mean return | High bucket mean return | High - low spread |
-| --- | ---: | ---: | ---: |
-| 60s | `-0.00302%` | `0.00474%` | `0.00775%` |
-| 180s | `-0.00339%` | `0.00144%` | `0.00483%` |
-| 300s | `-0.00264%` | `0.00395%` | `0.00659%` |
-
-Interpretation: aggregating microstructure confirmation to 1 minute improves the
-research shape. The top-minus-bottom spread remains positive at 1m, 3m, and 5m
-horizons, with the clearest effect at 1m. The relationship is not perfectly
-monotonic across all middle deciles, so this is still better treated as a
-feature/regime input than a standalone trading rule.
-
-## Related Rule Candidate
-
-The three-bar kbar streak plus pressure-confirmation work has been split into a
-separate rule-focused note: [Down-Streak Pressure](down_streak_pressure.md).
-
-In short, down-down-down 1 minute kbar streaks with confirmed sell pressure show
-conditional downside continuation, but the edge weakens after transaction costs
-and stricter event de-overlap. Treat that structure as a regime/filter candidate
-rather than a standalone trading rule.
-
-## Multi-Instrument Check
-
-The core quote-executable screen was repeated for `ETHUSDT.BINANCE` and
-`BNBUSDT.BINANCE` on the same `2026-06-18` to `2026-06-25` window. Both symbols
-used 1 second best bid/ask quotes from `OrderBookDepth10`.
-
-0-delay quote-executable gross directional returns:
-
-| Instrument | Horizon | Gross avg | Net @ 2 bps |
-| --- | ---: | ---: | ---: |
-| BTCUSDT | 10s | `0.00393%` | `-0.01607%` |
-| BTCUSDT | 30s | `0.00468%` | `-0.01532%` |
-| BTCUSDT | 60s | `0.00480%` | `-0.01520%` |
-| ETHUSDT | 10s | `0.00361%` | `-0.01639%` |
-| ETHUSDT | 30s | `0.00399%` | `-0.01601%` |
-| ETHUSDT | 60s | `0.00380%` | `-0.01620%` |
-| BNBUSDT | 10s | `0.00197%` | `-0.01803%` |
-| BNBUSDT | 30s | `0.00216%` | `-0.01784%` |
-| BNBUSDT | 60s | `0.00194%` | `-0.01806%` |
-
-Interpretation: the raw imbalance effect is not BTC-only, but it is weaker on
-ETH and materially weaker on BNB. None of the three instruments clears a 2 bps
-round-trip cost assumption under this simple taker-style execution screen.
-
-The 1 minute confirmed pressure persistence diagnostic was also repeated for
-ETH and BNB. Decile 10 minus decile 1 mean forward-return spread:
-
-| Instrument | Flow | 60s | 180s | 300s |
-| --- | --- | ---: | ---: | ---: |
-| BTCUSDT | trade-count | `0.00855%` | `0.00540%` | `0.00419%` |
-| BTCUSDT | volume | `0.00775%` | `0.00483%` | `0.00659%` |
-| ETHUSDT | trade-count | `0.00126%` | `0.00623%` | `0.00778%` |
-| ETHUSDT | volume | `0.00343%` | `0.00431%` | `0.00490%` |
-| BNBUSDT | trade-count | `-0.00068%` | `-0.00230%` | `-0.00430%` |
-| BNBUSDT | volume | `0.00089%` | `0.00132%` | `-0.00040%` |
-
-Interpretation: pressure persistence generalizes better to ETH than to BNB.
-BNB does not support the same pressure-continuation shape in this 7 day window.
-This weakens the case for a universal order-book imbalance alpha and supports
-treating the feature as instrument- and regime-dependent.
-
-## Interpretation
-
-The signal captures short-horizon order-flow pressure. It has stable directional
-ranking and clear extreme-event behavior, but the edge is about 1 to 2 basis
-points before transaction costs. It is unlikely to be enough as a standalone
-trading alpha without a very strong execution model.
-
-More appropriate uses:
-
-- Input feature in a multi-factor model.
-- Confirmation or veto for another alpha.
-- Execution timing signal.
-- Position sizing or aggressiveness adjustment.
-- Regime-specific filter when combined with spread, volatility, volume, or book
-  depth.
-
-## Caveats
-
-- Relationship, event-study, and interaction diagnostics use trade prices.
-  Executable-return screens use bid/ask quotes, but still do not model queue
-  position, partial fills, maker/taker fee schedules, or adverse selection.
-- Most diagnostics use one week. Core executable-return and pressure-persistence
-  checks were repeated for BTC, ETH, and BNB.
-- The 8,000 row visualization price CSV is not valid for short-horizon return
-  diagnostics.
-- Raw snapshot diagnostics contain adjacent highly correlated observations.
-  Clustered extreme-event reports reduce this problem for their specific event
-  definition, but not for every table above.
-
-## Completed Validation
-
-The following validation threads have been completed for this factor:
-
-- Corrected sparse-price forward-return diagnostics with 1 second trade prices.
-- Extreme imbalance event study.
-- Quote-based executable-return screen with bid/ask entry and exit prices,
-  transaction-cost assumptions, and entry delays.
-- Spread-regime executable-return screen.
-- Clustered extreme-event screen.
-- Trade volume and trade-density interaction screens.
-- Tick-rule signed trade-flow and signed-volume flow confirmation.
-- Four-quadrant signed-flow absorption screen.
-- Dense signed-flow screen combining density regimes with signed-flow quadrants.
-- 1 minute confirmed pressure-persistence derived alpha.
-- BTC, ETH, and BNB cross-instrument validation for core executable-return and
-  pressure-persistence diagnostics.
-- Related rule candidate: [Down-Streak Pressure](down_streak_pressure.md).
-
-## Remaining Optional Work
-
-Order book imbalance is sufficiently validated as a feature candidate rather
-than a standalone alpha. Further work should be targeted, not another broad
-round of raw imbalance reports:
-
-- Add realized-volatility and recent-return regime splits if the next model uses
-  imbalance as one feature among several.
-- Replace tick-rule signed flow with catalog aggressor-side data if that field
-  becomes available.
-- Test imbalance inside a multi-factor model or execution policy where its role
-  is confirmation, veto, sizing, or aggressiveness adjustment.
