@@ -18,5 +18,8 @@ wheels/
 outputs/*
 !outputs/README.md
 
-# Local evolution datasets and container scratch
-.local/evolution-data*/
+# Local runtime material: evolution datasets, governance ledgers, build logs
+.local/
+
+# Agent workspace (session artifacts, tasks)
+.pi/

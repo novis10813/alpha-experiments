@@ -59,9 +59,9 @@ local scratch area; its generated contents are not part of the repository map.
   durable research notes. `.local/`, `.pi/`, and `.worktrees/` are runtime or
   agent-workspace directories. Do not scan, summarize, or commit their contents.
   Before creating a new local artifact path, confirm its ignore status with
-  `git check-ignore`; the current ignore rules cover `outputs/*` and
-  `.local/evolution-data*`, while other local directories may remain merely
-  untracked.
+  `git check-ignore`; the current ignore rules cover `outputs/*`, `.local/`,
+  and `.pi/`, while other local directories such as `.worktrees/` may remain
+  merely untracked.
 
 ## Catalog policy
 
