@@ -16,7 +16,7 @@ from time import perf_counter
 from typing import Iterable
 
 from alphas.orderbook_imbalance import orderbook_imbalance_value
-from data.nautilus_catalog import make_catalog
+from common.nautilus_catalog import make_catalog
 from evolution.market_state import EvolutionMarketState
 from evolution.instruments import build_instrument
 from evolution.instruments import build_bar_type
@@ -31,9 +31,9 @@ from nautilus_trader.model.data import Bar
 from nautilus_trader.model.objects import Price
 from nautilus_trader.model.objects import Quantity
 from nautilus_trader.persistence.catalog.parquet import ParquetDataCatalog
-from data.orderbook_quotes import QuoteRow
-from data.orderbook_quotes import depths_to_quote_rows
-from data.orderbook_quotes import resample_quote_rows
+from common.orderbook_quotes import QuoteRow
+from common.orderbook_quotes import depths_to_quote_rows
+from common.orderbook_quotes import resample_quote_rows
 
 
 NS_PER_MINUTE = 60_000_000_000

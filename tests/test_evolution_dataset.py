@@ -358,7 +358,7 @@ class EvolutionDatasetTests(unittest.TestCase):
             self.assertGreaterEqual(metric[field], 0)
 
     def test_executable_builder_uses_local_source_quotes(self):
-        from data.orderbook_quotes import QuoteRow
+        from common.orderbook_quotes import QuoteRow
         from evolution.dataset import build_executable_discovery_from_fast
         from evolution.dataset import manifest_for
         from evolution.dataset import write_local_catalog
@@ -500,7 +500,7 @@ class EvolutionDatasetTests(unittest.TestCase):
             )
 
     def test_local_nautilus_catalog_round_trip_and_manifest_verification(self):
-        from data.orderbook_quotes import QuoteRow
+        from common.orderbook_quotes import QuoteRow
         from evolution.dataset import manifest_for
         from evolution.dataset import verify_manifest
         from evolution.dataset import write_local_catalog

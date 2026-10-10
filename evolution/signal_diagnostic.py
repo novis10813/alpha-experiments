@@ -17,7 +17,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Callable, Iterable
 
-from data.orderbook_quotes import QuoteRow
+from common.orderbook_quotes import QuoteRow
 from evolution.coverage import _datetime_to_ns
 from evolution.coverage import _parse_manifest_datetime
 from evolution.dataset import DatasetManifest, verify_manifest

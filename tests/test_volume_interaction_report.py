@@ -1,3 +1,4 @@
+import importlib
 import tempfile
 import unittest
 from pathlib import Path
@@ -5,7 +6,7 @@ from pathlib import Path
 
 class VolumeInteractionReportTests(unittest.TestCase):
     def test_build_volume_interaction_context_compares_raw_and_volume_adjusted_signal(self):
-        from reports.volume_interaction_report import build_volume_interaction_context
+        build_volume_interaction_context = importlib.import_module("tasks.T01-orderbook-imbalance.volume_interaction_report").build_volume_interaction_context
 
         with tempfile.TemporaryDirectory() as directory:
             alpha_path = Path(directory) / "alpha.csv"
@@ -56,8 +57,8 @@ class VolumeInteractionReportTests(unittest.TestCase):
         )
 
     def test_render_volume_interaction_report_html_contains_comparison_data(self):
-        from reports.volume_interaction_report import build_volume_interaction_context
-        from reports.volume_interaction_report import render_volume_interaction_report_html
+        build_volume_interaction_context = importlib.import_module("tasks.T01-orderbook-imbalance.volume_interaction_report").build_volume_interaction_context
+        render_volume_interaction_report_html = importlib.import_module("tasks.T01-orderbook-imbalance.volume_interaction_report").render_volume_interaction_report_html
 
         with tempfile.TemporaryDirectory() as directory:
             alpha_path = Path(directory) / "alpha.csv"

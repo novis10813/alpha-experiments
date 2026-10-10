@@ -15,7 +15,7 @@ class FakeTradeTick:
 
 class TradeFeatureTests(unittest.TestCase):
     def test_trade_ticks_to_feature_rows_resamples_last_price_and_sum_volume(self):
-        from data.trade_features import trade_ticks_to_feature_rows
+        from scripts.trade_features import trade_ticks_to_feature_rows
 
         rows = trade_ticks_to_feature_rows(
             [
@@ -32,7 +32,7 @@ class TradeFeatureTests(unittest.TestCase):
         self.assertEqual([row.trade_count for row in rows], [2, 1])
 
     def test_trade_ticks_to_feature_rows_adds_tick_rule_signed_flow(self):
-        from data.trade_features import trade_ticks_to_feature_rows
+        from scripts.trade_features import trade_ticks_to_feature_rows
 
         rows = trade_ticks_to_feature_rows(
             [
@@ -55,8 +55,8 @@ class TradeFeatureTests(unittest.TestCase):
         self.assertAlmostEqual(rows[0].volume_imbalance, -1 / 7)
 
     def test_write_feature_rows_csv_writes_price_and_volume_columns(self):
-        from data.trade_features import TradeFeatureRow
-        from data.trade_features import write_feature_rows_csv
+        from scripts.trade_features import TradeFeatureRow
+        from scripts.trade_features import write_feature_rows_csv
 
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "features.csv"

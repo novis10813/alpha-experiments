@@ -5,7 +5,7 @@ Entry point for a new research session. Updated 2026-10-07.
 ## Current state
 
 - **Cost is the binding constraint.** Discovery-only observation studies A1-A3
-  ([experiment ledger](experiment-ledger.md#observation-studies)) measured the
+  ([experiment ledger](../../tasks/T08-observation-studies/REPORT.md)) measured the
   directional hit rate needed to break even. Under the v1 spot profile (20 bps
   round trip) it exceeds 1.0 at 15 minutes or less and 0.90 at 30 minutes. Under
   perpetual taker fees (10 bps round trip) it is 0.79 to 0.88 at 15 minutes,
@@ -23,11 +23,11 @@ Entry point for a new research session. Updated 2026-10-07.
   perpetuals, but the catalog holds spot data only. Spot microstructure features
   (OBI, signed flow, spread) may lag perpetual price discovery.
 - **Cost profile v2 is drafted, not active.** See
-  [Execution Cost Profile v2](execution-cost-profile-v2.md).
+  [Execution Cost Profile v2](../../evolution/docs/execution-cost-profile-v2.md).
 - **Milestone 1 smoke champions** remain negative under the official profile and
   at 5 bps per fill. None may access validation.
 - **Market regime map** (rule v2) is generated. See
-  [Market Regime Characterization](market-regime-characterization.md).
+  [Market Regime Characterization](../../tasks/T07-market-regime/REPORT.md#market-regime-characterization).
 
 ## Paused research lines
 
@@ -37,11 +37,11 @@ with a hypothesis that also selects large-move periods or uses a longer horizon.
 
 | Line | Last status |
 | --- | --- |
-| [Down-Streak Pressure](factors/down_streak_pressure.md) | `feature_candidate`, BTC-only, 30 minute edge thin after cost and de-overlap |
-| [Five Green Streak](factors/five_green_streak.md) | `idea`, weak continuation that did not survive cost |
-| [OBI MA Spread](factors/obi_ma_spread.md) | `idea`, small and unstable after cooldown and cost |
+| [Down-Streak Pressure](../../tasks/T02-down-streak-pressure/REPORT.md) | `feature_candidate`, BTC-only, 30 minute edge thin after cost and de-overlap |
+| [Five Green Streak](../../tasks/T03-five-green-streak/REPORT.md) | `idea`, weak continuation that did not survive cost |
+| [OBI MA Spread](../../tasks/T04-obi-ma-spread/REPORT.md) | `idea`, small and unstable after cooldown and cost |
 
-[Order Book Imbalance](factors/orderbook_imbalance_feature.md) stays a
+[Order Book Imbalance](../../tasks/T01-orderbook-imbalance/REPORT.md) stays a
 `feature_candidate` for filters and execution timing. Do not add more raw
 imbalance reports.
 
@@ -70,8 +70,8 @@ imbalance reports.
 ## Read first
 
 1. [Alpha Research Framework](research-framework.md)
-2. [Experiment Ledger](experiment-ledger.md)
-3. [Execution Cost Profile v2](execution-cost-profile-v2.md)
-4. [Promotion Protocol](promotion-protocol.md)
+2. [Experiment Ledger](../../evolution/docs/experiment-ledger.md)
+3. [Execution Cost Profile v2](../../evolution/docs/execution-cost-profile-v2.md)
+4. [Promotion Protocol](../../evolution/docs/promotion-protocol.md)
 
-The full list of notes is in the [research index](README.md).
+The full list of notes is in the [research index](../../AGENTS.md#tasks).

@@ -1,3 +1,4 @@
+import importlib
 import tempfile
 import unittest
 from pathlib import Path
@@ -5,7 +6,7 @@ from pathlib import Path
 
 class ObiMaSpreadReportTests(unittest.TestCase):
     def test_build_context_computes_spread_groups_and_forward_returns(self):
-        from reports.obi_ma_spread_report import build_obi_ma_spread_context
+        build_obi_ma_spread_context = importlib.import_module("tasks.T04-obi-ma-spread.obi_ma_spread_report").build_obi_ma_spread_context
 
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "kbar_obi.csv"
@@ -74,7 +75,7 @@ class ObiMaSpreadReportTests(unittest.TestCase):
         self.assertEqual(strict_summary.count, 1)
 
     def test_build_context_rejects_short_window_not_less_than_long_window(self):
-        from reports.obi_ma_spread_report import build_obi_ma_spread_context
+        build_obi_ma_spread_context = importlib.import_module("tasks.T04-obi-ma-spread.obi_ma_spread_report").build_obi_ma_spread_context
 
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "kbar_obi.csv"
@@ -84,8 +85,8 @@ class ObiMaSpreadReportTests(unittest.TestCase):
                 build_obi_ma_spread_context(source, short_window=3, long_window=3)
 
     def test_render_html_contains_summary_payload(self):
-        from reports.obi_ma_spread_report import build_obi_ma_spread_context
-        from reports.obi_ma_spread_report import render_obi_ma_spread_report_html
+        build_obi_ma_spread_context = importlib.import_module("tasks.T04-obi-ma-spread.obi_ma_spread_report").build_obi_ma_spread_context
+        render_obi_ma_spread_report_html = importlib.import_module("tasks.T04-obi-ma-spread.obi_ma_spread_report").render_obi_ma_spread_report_html
 
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "kbar_obi.csv"

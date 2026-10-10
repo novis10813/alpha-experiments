@@ -4,7 +4,7 @@ This file is the AI collaboration entry point for `research/`. Read the root
 [`AGENTS.md`](../AGENTS.md) first; when instructions conflict, the file nearest
 the target has priority. Detailed research policy lives in
 [`docs/research/research-framework.md`](../docs/research/research-framework.md)
-and the repository map in [`docs/repository-guide.md`](../docs/repository-guide.md).
+and the repository map in [`AGENTS.md`](../AGENTS.md).
 
 ## Scope
 

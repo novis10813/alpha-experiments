@@ -9,7 +9,7 @@ class EvolutionIntegrationTests(unittest.TestCase):
 
         from evolution.sandbox import DEFAULT_IMAGE
 
-        self.assertTrue(Path(".local/evolution-data").exists())
+        self.assertTrue(Path("data/evolution-data").exists())
         self.assertTrue(DEFAULT_IMAGE)
 
 

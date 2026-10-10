@@ -5,7 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from data.orderbook_quotes import QuoteRow
+from common.orderbook_quotes import QuoteRow
 from evolution.rules import validate_rule_dict
 
 
