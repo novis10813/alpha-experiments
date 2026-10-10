@@ -1,7 +1,10 @@
 # T09: Volatility State and Forward Excursion
 
 Status: in progress. Run `excursion-v1` is descriptive, with preregistered check
-C1 (magnitude) passed and C2 (direction) failed.
+C1 (magnitude) passed and C2 (direction) failed. Run `vol-gate-v1` measures
+absolute volatility as a gate for other strategies: rv_60 ranks 30 and 60 min
+move size consistently, but at v1 cost a direction signal inside the gate still
+needs a 64 to 75% hit rate to break even.
 
 ## Question
 
@@ -98,6 +101,126 @@ across blocks and instruments. It does not tell which side is reached first, so
 symmetric barriers entered at t have no gross edge in any state. A tradable rule
 needs a second step: what the path does after the first touch.
 
+## Run vol-gate-v1: absolute volatility as a gate
+
+### Question and setup
+
+Can a volatility estimate known at t serve as a gate that opens only when the
+next h minutes are likely to move enough to pay the cost? Percentiles are not
+used: cost is fixed in bps, so the gate is defined on absolute volatility.
+
+- Data: the six excursion-v1 blocks plus an August discovery supplement
+  (2026-07-25 to 2026-08-27), 7 blocks and 79 days per instrument. No validation
+  or holdout data.
+- Estimators, per-minute volatility sigma in bps from data up to t: rv_15, rv_60,
+  rv_240 (std of 1-min log mid returns), park_60 (Parkinson from minute trade
+  high/low), ewma_60 (half-life 60 min), and season (median of the same UTC hour
+  over the previous 7 days, a pure time-of-day estimate).
+- Expected move x = sigma x sqrt(h). Under a random walk, the mean of |r_h| would
+  be 0.80 x.
+- Targets over (t, t+h], every minute: |r_h| = |return at t+h| and R = largest
+  absolute excursion.
+- Breakeven hit rate for a direction signal that exits at t+h, with round-trip
+  cost c:
+
+$$p^* = \frac{1}{2} + \frac{c}{2\,E|r_h|}$$
+
+  It assumes the signal's accuracy does not depend on move size. c is 20 bps
+  (v1) or 10 bps (draft v2 perpetual taker) plus the median spread.
+- Stability is judged on daily Spearman IC (its mean over standard deviation is
+  the IR), per-block curves, and 5-95% day-bootstrap intervals. No pass/fail
+  check was set.
+
+### rv_60 ranks 30 and 60 minute moves, not 240 minute moves within a day
+
+Daily IC of sigma with |r_h|, rv_60:
+
+| Instrument | h | Mean IC | IR | Days with IC > 0 | Pooled IC |
+| --- | --- | --- | --- | --- | --- |
+| BTC | 30 | 0.169 | 1.34 | 0.94 | 0.397 |
+| BTC | 60 | 0.127 | 0.90 | 0.81 | 0.370 |
+| BTC | 240 | 0.002 | 0.01 | 0.48 | 0.289 |
+| ETH | 30 | 0.165 | 1.27 | 0.94 | 0.363 |
+| ETH | 60 | 0.130 | 0.82 | 0.78 | 0.337 |
+| ETH | 240 | 0.044 | 0.17 | 0.48 | 0.282 |
+| BNB | 30 | 0.162 | 1.27 | 0.91 | 0.330 |
+| BNB | 60 | 0.128 | 0.79 | 0.77 | 0.308 |
+| BNB | 240 | -0.001 | 0.00 | 0.56 | 0.215 |
+
+At 240 min the pooled IC stays at 0.22 to 0.29 while the daily IC is near zero:
+volatility separates calm days from active days but does not time moves within
+a day.
+
+![Cumulative daily IC](figures/F4_daily_ic.png)
+
+### Estimator comparison
+
+rv_60, park_60, and rv_15 are tied (30 min IR 1.27 to 1.38 on every
+instrument). ewma_60 and rv_240 are weaker. The time-of-day estimate is the
+weakest pooled (IC 0.06 to 0.18), so the volatility gate is not a proxy for the
+UTC hour. rv_60 is used below. park_60 matches it but uses trade high/low, which
+includes bid-ask bounce.
+
+### Move size rises with x but less than proportionally
+
+![Mean |r_h| by expected move](figures/F2_bins_rv_60.png)
+
+Mean |r_h| rises with x on every block up to about x = 60 bps. Above that, the
+30 and 60 min means flatten and the blocks diverge. Relative to the random-walk
+line, low x underestimates and high x overestimates the next move. The median
+|r_h| / x falls from about 0.65 in the lowest bins to 0.2 to 0.4 in the highest
+(random walk: 0.67), so a barrier set at k x needs a k that depends on x.
+
+![Ratio to expected move](figures/F6_z_rv_60.png)
+
+### Gate economics
+
+Lowest p* in any x bin (rv_60):
+
+| Instrument | h | p* at v1 cost | p* at v2 cost |
+| --- | --- | --- | --- |
+| BTC | 30 | 0.73 | 0.61 |
+| BTC | 60 | 0.68 | 0.59 |
+| ETH | 30 | 0.68 | 0.59 |
+| ETH | 60 | 0.64 | 0.57 |
+| BNB | 30 | 0.75 | 0.62 |
+| BNB | 60 | 0.69 | 0.59 |
+
+Gate threshold X at which the gated minutes first reach p* of at most 0.75 (v1)
+or 0.65 (v2), and the share of minutes the gate is open:
+
+| Instrument | h | v1: X, open share | v2: X, open share |
+| --- | --- | --- | --- |
+| BTC | 30 | 50.0 bps, 0.06 | 37.5 bps, 0.14 |
+| BTC | 60 | 42.5 bps, 0.23 | 30.0 bps, 0.50 |
+| ETH | 30 | 47.5 bps, 0.16 | 32.5 bps, 0.37 |
+| ETH | 60 | 32.5 bps, 0.67 | no gate needed |
+| BNB | 30 | 52.5 bps, 0.05 | 37.5 bps, 0.14 |
+| BNB | 60 | 42.5 bps, 0.25 | 32.5 bps, 0.47 |
+
+![Gate trade-off at v1 cost](figures/F3_gate_v1.png)
+
+![Gate trade-off at v2 cost](figures/F3_gate_v2.png)
+
+These are hit rates a direction signal must reach. No such signal exists yet:
+excursion-v1 found no direction in any volatility state.
+
+### Cross-instrument volatility adds little
+
+Controlling for the instrument's own rv_60, the other instruments' rv_60 has
+daily partial IC of -0.03 to 0.05 with |r_h| (IR at most 0.46, BNB as the source
+being the strongest). It does not justify a multi-instrument gate.
+
+### Conclusion
+
+rv_60 in absolute bps is a usable gate for 30 and 60 min strategies: its ranking
+of move size holds on all 7 blocks and 3 instruments, and it is not a
+time-of-day proxy. The gate lowers the required hit rate, but at v1 cost it
+stays at 64 to 75% even in the most volatile bins, and the gate is open 5 to 67%
+of the time at the 0.75 level. At the draft v2 cost the requirement falls to 57
+to 62%. Thresholds should be set from realized |r_h| per x bin, because x
+overstates the move in high volatility.
+
 ## Rejected follow-ups
 
 Two follow-ups searched for direction instead of studying volatility and were
@@ -120,3 +243,7 @@ The code and full results are kept in the task branch history and the
 - Spot data as a proxy for the perpetual venue.
 - 51 days per instrument. The 240 min decile cells are small.
 - Minute-close mid misses moves within the minute.
+- vol-gate-v1 bins above x = 60 bps at 30 and 60 min hold few days (5 to 64), so
+  their intervals are wide.
+- p* assumes a direction signal whose accuracy does not depend on move size, and
+  exits at t+h. Barrier exits would change it.
