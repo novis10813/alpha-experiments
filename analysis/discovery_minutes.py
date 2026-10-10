@@ -11,12 +11,11 @@ from analysis.market_regime_report import default_split_map
 MIN_NS = 60_000_000_000
 
 
-def load(inst: str, extra: tuple[tuple[str, str], ...] = ()) -> pd.DataFrame:
-    """extra: (supplemental split, block label) pairs added to the default discovery splits."""
+def load(inst: str) -> pd.DataFrame:
     sm = default_split_map()[inst]
     parts = [(sm.original_folds_root, s, s) for s in sm.original_folds] + [
         (sm.supplemental_root, s, "supplemental") for s in sm.supplemental_splits
-    ] + [(sm.supplemental_root, s, block) for s, block in extra]
+    ]
     rows = []
     for root, split, block in parts:
         for item in ParquetDataCatalog(root / split / inst).query(EvolutionMarketState, identifiers=[inst]):
