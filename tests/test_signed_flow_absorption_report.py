@@ -1,3 +1,4 @@
+import importlib
 import tempfile
 import unittest
 from pathlib import Path
@@ -5,7 +6,7 @@ from pathlib import Path
 
 class SignedFlowAbsorptionReportTests(unittest.TestCase):
     def test_build_absorption_context_summarizes_four_regimes(self):
-        from reports.signed_flow_absorption_report import build_absorption_context
+        build_absorption_context = importlib.import_module("tasks.T01-orderbook-imbalance.signed_flow_absorption_report").build_absorption_context
 
         with tempfile.TemporaryDirectory() as directory:
             alpha_path = Path(directory) / "alpha.csv"
@@ -67,8 +68,8 @@ class SignedFlowAbsorptionReportTests(unittest.TestCase):
         self.assertEqual(confirmed.count, 1)
 
     def test_render_absorption_report_html_contains_summary_data(self):
-        from reports.signed_flow_absorption_report import build_absorption_context
-        from reports.signed_flow_absorption_report import render_absorption_report_html
+        build_absorption_context = importlib.import_module("tasks.T01-orderbook-imbalance.signed_flow_absorption_report").build_absorption_context
+        render_absorption_report_html = importlib.import_module("tasks.T01-orderbook-imbalance.signed_flow_absorption_report").render_absorption_report_html
 
         with tempfile.TemporaryDirectory() as directory:
             alpha_path = Path(directory) / "alpha.csv"

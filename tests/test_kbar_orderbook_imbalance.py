@@ -1,3 +1,4 @@
+import importlib
 import tempfile
 import unittest
 from dataclasses import dataclass
@@ -29,7 +30,7 @@ class FakeDepth:
 
 class KbarOrderbookImbalanceTests(unittest.TestCase):
     def test_rows_keep_only_buckets_with_contiguous_trade_ids_and_orderbook_coverage(self):
-        from data.kbar_orderbook_imbalance import kbar_orderbook_imbalance_rows
+        kbar_orderbook_imbalance_rows = importlib.import_module("tasks.T04-obi-ma-spread.kbar_orderbook_imbalance").kbar_orderbook_imbalance_rows
 
         rows = kbar_orderbook_imbalance_rows(
             [
@@ -98,7 +99,7 @@ class KbarOrderbookImbalanceTests(unittest.TestCase):
         self.assertAlmostEqual(row.orderbook_imbalance_last, 0.5)
 
     def test_imbalance_basis_can_use_volume_or_trade_count_interaction(self):
-        from data.kbar_orderbook_imbalance import kbar_orderbook_imbalance_rows
+        kbar_orderbook_imbalance_rows = importlib.import_module("tasks.T04-obi-ma-spread.kbar_orderbook_imbalance").kbar_orderbook_imbalance_rows
 
         trades = [
             FakeTradeTick("BTCUSDT.BINANCE", 1_000_000_000, Decimal("100"), Decimal("2"), 1),
@@ -139,8 +140,8 @@ class KbarOrderbookImbalanceTests(unittest.TestCase):
         self.assertAlmostEqual(count_row.imbalance_value, 1.0)
 
     def test_write_csv_includes_activity_adjusted_columns(self):
-        from data.kbar_orderbook_imbalance import kbar_orderbook_imbalance_rows
-        from data.kbar_orderbook_imbalance import write_kbar_orderbook_imbalance_csv
+        kbar_orderbook_imbalance_rows = importlib.import_module("tasks.T04-obi-ma-spread.kbar_orderbook_imbalance").kbar_orderbook_imbalance_rows
+        write_kbar_orderbook_imbalance_csv = importlib.import_module("tasks.T04-obi-ma-spread.kbar_orderbook_imbalance").write_kbar_orderbook_imbalance_csv
 
         rows = kbar_orderbook_imbalance_rows(
             [FakeTradeTick("BTCUSDT.BINANCE", 1_000_000_000, Decimal("100"), Decimal("2"), 1)],

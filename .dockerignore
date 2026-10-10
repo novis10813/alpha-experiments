@@ -5,8 +5,6 @@
 !alphas/**
 !common/
 !common/**
-!data/
-!data/**
 !evolution/
 !evolution/**
 **/__pycache__/

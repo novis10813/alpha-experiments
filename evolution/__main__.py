@@ -31,7 +31,7 @@ def parse_args() -> argparse.Namespace:
     subparsers = parser.add_subparsers(dest="command", required=True)
     build = subparsers.add_parser("build-data", help="Build local split-specific datasets from the read-only catalog.")
     build.add_argument("--instrument-id", choices=INSTRUMENT_IDS, required=True)
-    build.add_argument("--dataset-root", type=Path, default=Path(".local/evolution-data"))
+    build.add_argument("--dataset-root", type=Path, default=Path("data/evolution-data"))
     supplemental = subparsers.add_parser(
         "build-supplemental-discovery",
         help="Build one isolated executable-profile discovery supplement from the read-only catalog.",
@@ -45,16 +45,16 @@ def parse_args() -> argparse.Namespace:
         help="Build one-second quote datasets for discovery folds only.",
     )
     executable.add_argument("--instrument-id", choices=INSTRUMENT_IDS, required=True)
-    executable.add_argument("--dataset-root", type=Path, default=Path(".local/evolution-data"))
+    executable.add_argument("--dataset-root", type=Path, default=Path("data/evolution-data"))
     executable.add_argument(
         "--output-root",
         type=Path,
-        default=Path(".local/evolution-data-executable"),
+        default=Path("data/evolution-data-executable"),
     )
     for name in ("evolve", "resume"):
         run = subparsers.add_parser(name, help=f"{name.title()} one instrument evolution run.")
         run.add_argument("--instrument-id", choices=INSTRUMENT_IDS, required=True)
-        run.add_argument("--dataset-root", type=Path, default=Path(".local/evolution-data"))
+        run.add_argument("--dataset-root", type=Path, default=Path("data/evolution-data"))
         run.add_argument("--output-root", type=Path, default=Path("outputs/evolution"))
         run.add_argument("--run-id", required=True)
         run.add_argument("--family-id", choices=tuple(FAMILY_REGISTRY))
@@ -70,7 +70,7 @@ def parse_args() -> argparse.Namespace:
             run.add_argument("--checkpoint", type=Path, required=True)
     diagnose = subparsers.add_parser("diagnose", help="Run fixed baselines on discovery folds only.")
     diagnose.add_argument("--instrument-id", choices=INSTRUMENT_IDS, required=True)
-    diagnose.add_argument("--dataset-root", type=Path, default=Path(".local/evolution-data"))
+    diagnose.add_argument("--dataset-root", type=Path, default=Path("data/evolution-data"))
     diagnose.add_argument("--output-root", type=Path, default=Path("outputs/evolution-diagnostics"))
     diagnose.add_argument("--run-id", required=True)
     coverage = subparsers.add_parser(
@@ -78,7 +78,7 @@ def parse_args() -> argparse.Namespace:
         help="Report offline coverage for discovery folds only.",
     )
     coverage.add_argument("--instrument-id", choices=INSTRUMENT_IDS, required=True)
-    coverage.add_argument("--dataset-root", type=Path, default=Path(".local/evolution-data"))
+    coverage.add_argument("--dataset-root", type=Path, default=Path("data/evolution-data"))
     coverage.add_argument(
         "--output",
         type=Path,
@@ -107,11 +107,11 @@ def parse_args() -> argparse.Namespace:
     signal_diagnostic.add_argument("--output", type=Path, required=True)
     rerank = subparsers.add_parser("rerank", help="Rerank top candidates with executable discovery quotes.")
     rerank.add_argument("--instrument-id", choices=INSTRUMENT_IDS, required=True)
-    rerank.add_argument("--dataset-root", type=Path, default=Path(".local/evolution-data"))
+    rerank.add_argument("--dataset-root", type=Path, default=Path("data/evolution-data"))
     rerank.add_argument(
         "--executable-dataset-root",
         type=Path,
-        default=Path(".local/evolution-data-executable"),
+        default=Path("data/evolution-data-executable"),
     )
     rerank.add_argument("--output-root", type=Path, default=Path("outputs/evolution"))
     rerank.add_argument("--run-id", required=True)
@@ -120,7 +120,7 @@ def parse_args() -> argparse.Namespace:
     sensitivity = subparsers.add_parser("sensitivity", help="Run discovery fee and delay sensitivity.")
     sensitivity.add_argument("--instrument-id", choices=INSTRUMENT_IDS, required=True)
     sensitivity.add_argument(
-        "--executable-dataset-root", type=Path, default=Path(".local/evolution-data-executable"),
+        "--executable-dataset-root", type=Path, default=Path("data/evolution-data-executable"),
     )
     sensitivity.add_argument("--output-root", type=Path, default=Path("outputs/evolution"))
     sensitivity.add_argument("--run-id", required=True)
@@ -132,12 +132,12 @@ def parse_args() -> argparse.Namespace:
     audit.add_argument("--output", type=Path, required=True)
     promote = subparsers.add_parser("promote", help="Validate top 10 and consume holdout once.")
     promote.add_argument("--instrument-id", choices=INSTRUMENT_IDS, required=True)
-    promote.add_argument("--dataset-root", type=Path, default=Path(".local/evolution-data"))
+    promote.add_argument("--dataset-root", type=Path, default=Path("data/evolution-data"))
     promote.add_argument("--output-root", type=Path, default=Path("outputs/evolution"))
     promote.add_argument("--run-id", required=True)
     promote.add_argument("--family-id", required=True)
     promote.add_argument("--hypothesis", required=True)
-    promote.add_argument("--governance-root", type=Path, default=Path(".local/evolution-governance"))
+    promote.add_argument("--governance-root", type=Path, default=Path("data/evolution-governance"))
     return parser.parse_args()
 
 

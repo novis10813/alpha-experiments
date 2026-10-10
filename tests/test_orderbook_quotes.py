@@ -21,7 +21,7 @@ class FakeDepth:
 
 class OrderBookQuoteTests(unittest.TestCase):
     def test_depths_to_quote_rows_emit_best_bid_ask_mid_and_spread(self):
-        from data.orderbook_quotes import depths_to_quote_rows
+        from common.orderbook_quotes import depths_to_quote_rows
 
         rows = depths_to_quote_rows(
             [
@@ -44,7 +44,7 @@ class OrderBookQuoteTests(unittest.TestCase):
         self.assertAlmostEqual(rows[0].spread_bps, 0.1 / 100.05 * 10_000)
 
     def test_depths_to_quote_rows_resample_to_last_quote_and_fill_empty_buckets(self):
-        from data.orderbook_quotes import depths_to_quote_rows
+        from common.orderbook_quotes import depths_to_quote_rows
 
         rows = depths_to_quote_rows(
             [
@@ -78,8 +78,8 @@ class OrderBookQuoteTests(unittest.TestCase):
         self.assertEqual([row.ask for row in rows], [103.0, 103.0, 105.0])
 
     def test_write_quote_rows_csv_writes_expected_columns(self):
-        from data.orderbook_quotes import QuoteRow
-        from data.orderbook_quotes import write_quote_rows_csv
+        from common.orderbook_quotes import QuoteRow
+        from common.orderbook_quotes import write_quote_rows_csv
 
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "quotes.csv"

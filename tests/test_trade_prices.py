@@ -14,7 +14,7 @@ class FakeTradeTick:
 
 class TradePriceTests(unittest.TestCase):
     def test_trade_ticks_to_price_rows_use_canonical_market_price_shape(self):
-        from data.trade_prices import trade_ticks_to_price_rows
+        from scripts.trade_prices import trade_ticks_to_price_rows
 
         rows = trade_ticks_to_price_rows(
             [
@@ -31,7 +31,7 @@ class TradePriceTests(unittest.TestCase):
         self.assertEqual(rows[0].price, 101.25)
 
     def test_trade_ticks_to_price_rows_can_downsample_for_visualization(self):
-        from data.trade_prices import trade_ticks_to_price_rows
+        from scripts.trade_prices import trade_ticks_to_price_rows
 
         rows = trade_ticks_to_price_rows(
             [
@@ -46,7 +46,7 @@ class TradePriceTests(unittest.TestCase):
         self.assertEqual([row.ts_event for row in rows], [100, 400])
 
     def test_trade_ticks_to_price_rows_can_resample_to_last_price_per_interval(self):
-        from data.trade_prices import trade_ticks_to_price_rows
+        from scripts.trade_prices import trade_ticks_to_price_rows
 
         rows = trade_ticks_to_price_rows(
             [
@@ -62,8 +62,8 @@ class TradePriceTests(unittest.TestCase):
         self.assertEqual([row.price for row in rows], [101.0, 102.0])
 
     def test_write_price_rows_csv_writes_report_overlay_columns(self):
-        from data.trade_prices import PriceRow
-        from data.trade_prices import write_price_rows_csv
+        from scripts.trade_prices import PriceRow
+        from scripts.trade_prices import write_price_rows_csv
 
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "prices.csv"
@@ -85,7 +85,7 @@ class TradePriceTests(unittest.TestCase):
         self.assertIn("100,BTCUSDT.BINANCE,101.25", contents)
 
     def test_resolve_max_rows_allows_full_resolution_export(self):
-        from data.trade_prices import resolve_max_rows
+        from scripts.trade_prices import resolve_max_rows
 
         self.assertIsNone(resolve_max_rows(max_rows=8000, no_downsample=True))
         self.assertEqual(resolve_max_rows(max_rows=8000, no_downsample=False), 8000)

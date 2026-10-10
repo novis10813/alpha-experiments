@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 class NautilusCatalogConfigTests(unittest.TestCase):
     def test_missing_required_environment_variable_raises_clear_error(self):
-        from data.nautilus_catalog import catalog_config_from_env
+        from common.nautilus_catalog import catalog_config_from_env
 
         with tempfile.TemporaryDirectory() as directory, patch.dict(
             os.environ,
@@ -18,7 +18,7 @@ class NautilusCatalogConfigTests(unittest.TestCase):
                 catalog_config_from_env()
 
     def test_catalog_config_uses_minio_path_style_options(self):
-        from data.nautilus_catalog import catalog_config_from_env
+        from common.nautilus_catalog import catalog_config_from_env
 
         env = {
             "CATALOG_S3_ENDPOINT": "http://minio.local:9000",
@@ -53,7 +53,7 @@ class NautilusCatalogConfigTests(unittest.TestCase):
         )
 
     def test_catalog_config_loads_dotenv_from_current_project(self):
-        from data.nautilus_catalog import catalog_config_from_env
+        from common.nautilus_catalog import catalog_config_from_env
 
         with tempfile.TemporaryDirectory() as directory:
             env_path = Path(directory) / ".env"

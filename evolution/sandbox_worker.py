@@ -4,7 +4,7 @@ import json
 import os
 from pathlib import Path
 
-from data.orderbook_quotes import QuoteRow
+from common.orderbook_quotes import QuoteRow
 from nautilus_trader.model.identifiers import InstrumentId
 from nautilus_trader.persistence.catalog.parquet import ParquetDataCatalog
 

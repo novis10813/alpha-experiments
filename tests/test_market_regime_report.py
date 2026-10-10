@@ -1,7 +1,7 @@
-"""Tests for reports.market_regime_report rule v2 (synthetic fixtures, no parquet).
+"""Tests for analysis.market_regime_report rule v2 (synthetic fixtures, no parquet).
 
 All expected values are hand-verifiable from the rule in
-docs/research/market-regime-characterization.md (v2 section):
+tasks/T07-market-regime/REPORT.md (v2 section):
 
   r3_d  = close_d / close_base - 1
           (base = 3rd-most-recent complete day at or before d, i.e. the 2nd
@@ -27,7 +27,7 @@ from dataclasses import asdict
 
 import unittest
 
-from reports.market_regime_report import DayObservation, classify_days, merge_days
+from analysis.market_regime_report import DayObservation, classify_days, merge_days
 
 DRIFT = 1.5
 BASE_R3 = DRIFT**2 - 1.0  # exactly 1.25

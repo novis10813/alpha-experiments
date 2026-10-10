@@ -105,5 +105,33 @@ hypothesis.
 
 ## Outputs and Notes
 
-Artifact rules are in the [repository guide](../repository-guide.md#local-artifacts).
-Note rules are in the [research index](README.md#note-rules).
+Artifact rules are in the [repository guide](../../AGENTS.md#data-and-outputs).
+Note rules are in [Note rules](#note-rules).
+
+## Factor status
+
+One status per factor note. Evolution families use the separate statuses in the
+[Promotion Protocol](../../evolution/docs/promotion-protocol.md#research-statuses).
+
+| Status | Meaning |
+| --- | --- |
+| `idea` | Written down, not evaluated. |
+| `diagnostic_passed` | Data quality and signal diagnostics look usable. |
+| `feature_candidate` | Measurable edge, better used as a feature, filter, state, or execution input than as a standalone alpha. |
+| `backtest_candidate` | Strong enough to justify execution assumptions and strategy tests. |
+| `rejected` | Evidence does not support further work under current assumptions. |
+| `archived` | Superseded or paused, kept for context. |
+
+## Note rules
+
+- One factor per `tasks/T<NN>-<name>/REPORT.md`, written from the
+  [factor template](templates/factor-research-template.md).
+- Record the data window, instrument, and inputs in `REPORT.md`, and the commands
+  that regenerate every cited artifact in the task's `README.md`.
+- Link to generated reports from the task's `README.md`. Do not copy large tables
+  or embed generated HTML.
+- Check the [literature registry](literature/README.md) before researching a
+  new paper.
+- When a bug or data issue changes a result, state the correction explicitly.
+- Record rejected and inconclusive results. Negative results are part of the
+  research history.

@@ -1,3 +1,4 @@
+import importlib
 import tempfile
 import unittest
 from pathlib import Path
@@ -5,7 +6,7 @@ from pathlib import Path
 
 class ExtremeImbalanceReportTests(unittest.TestCase):
     def test_build_extreme_context_summarizes_positive_and_negative_events(self):
-        from reports.extreme_imbalance_report import build_extreme_context
+        build_extreme_context = importlib.import_module("tasks.T01-orderbook-imbalance.extreme_imbalance_report").build_extreme_context
 
         with tempfile.TemporaryDirectory() as directory:
             alpha_path = Path(directory) / "alpha.csv"
@@ -62,8 +63,8 @@ class ExtremeImbalanceReportTests(unittest.TestCase):
         self.assertEqual(negative_1s.directional_hit_rate, 1.0)
 
     def test_render_extreme_report_html_contains_path_and_summary_data(self):
-        from reports.extreme_imbalance_report import build_extreme_context
-        from reports.extreme_imbalance_report import render_extreme_report_html
+        build_extreme_context = importlib.import_module("tasks.T01-orderbook-imbalance.extreme_imbalance_report").build_extreme_context
+        render_extreme_report_html = importlib.import_module("tasks.T01-orderbook-imbalance.extreme_imbalance_report").render_extreme_report_html
 
         with tempfile.TemporaryDirectory() as directory:
             alpha_path = Path(directory) / "alpha.csv"
@@ -104,7 +105,7 @@ class ExtremeImbalanceReportTests(unittest.TestCase):
         self.assertIn("Plotly.newPlot", html)
 
     def test_build_extreme_context_accepts_small_price_timestamp_jitter(self):
-        from reports.extreme_imbalance_report import build_extreme_context
+        build_extreme_context = importlib.import_module("tasks.T01-orderbook-imbalance.extreme_imbalance_report").build_extreme_context
 
         with tempfile.TemporaryDirectory() as directory:
             alpha_path = Path(directory) / "alpha.csv"

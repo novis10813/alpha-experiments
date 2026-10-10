@@ -1,3 +1,4 @@
+import importlib
 import tempfile
 import unittest
 from pathlib import Path
@@ -5,7 +6,7 @@ from pathlib import Path
 
 class FiveGreenStreakReportTests(unittest.TestCase):
     def test_build_context_detects_fifth_green_bar_and_forward_returns(self):
-        from reports.five_green_streak_report import build_five_green_streak_context
+        build_five_green_streak_context = importlib.import_module("tasks.T03-five-green-streak.five_green_streak_report").build_five_green_streak_context
 
         with tempfile.TemporaryDirectory() as directory:
             price_path = Path(directory) / "prices.csv"
@@ -60,7 +61,7 @@ class FiveGreenStreakReportTests(unittest.TestCase):
         self.assertEqual(cooldown_summary.count, 1)
 
     def test_build_context_rejects_empty_horizons(self):
-        from reports.five_green_streak_report import build_five_green_streak_context
+        build_five_green_streak_context = importlib.import_module("tasks.T03-five-green-streak.five_green_streak_report").build_five_green_streak_context
 
         with tempfile.TemporaryDirectory() as directory:
             price_path = Path(directory) / "prices.csv"
@@ -78,8 +79,8 @@ class FiveGreenStreakReportTests(unittest.TestCase):
                 build_five_green_streak_context(price_path, horizons_minutes=[])
 
     def test_render_html_contains_summary_table_and_plot(self):
-        from reports.five_green_streak_report import build_five_green_streak_context
-        from reports.five_green_streak_report import render_five_green_streak_report_html
+        build_five_green_streak_context = importlib.import_module("tasks.T03-five-green-streak.five_green_streak_report").build_five_green_streak_context
+        render_five_green_streak_report_html = importlib.import_module("tasks.T03-five-green-streak.five_green_streak_report").render_five_green_streak_report_html
 
         with tempfile.TemporaryDirectory() as directory:
             price_path = Path(directory) / "prices.csv"

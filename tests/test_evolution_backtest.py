@@ -77,7 +77,7 @@ class EvolutionBacktestTests(unittest.TestCase):
         self.assertAlmostEqual(net[1], 2 / 100_001)
 
     def test_one_second_quote_at_delay_boundary_changes_fill_price(self):
-        from data.orderbook_quotes import QuoteRow
+        from common.orderbook_quotes import QuoteRow
         from evolution.backtest import run_candidate
         from evolution.market_state import EvolutionMarketState
 

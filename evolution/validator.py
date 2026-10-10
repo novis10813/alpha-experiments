@@ -4,7 +4,7 @@ import json
 from dataclasses import asdict
 from pathlib import Path
 
-from data.orderbook_quotes import QuoteRow
+from common.orderbook_quotes import QuoteRow
 from evolution.ledger import acquire_holdout_lock
 from evolution.ledger import complete_holdout
 from evolution.ledger import record_validation

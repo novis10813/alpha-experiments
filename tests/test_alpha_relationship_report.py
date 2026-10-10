@@ -1,3 +1,4 @@
+import importlib
 import tempfile
 import unittest
 from pathlib import Path
@@ -5,7 +6,7 @@ from pathlib import Path
 
 class AlphaRelationshipReportTests(unittest.TestCase):
     def test_build_relationship_context_computes_forward_returns_from_price_csv(self):
-        from reports.alpha_relationship_report import build_relationship_context
+        build_relationship_context = importlib.import_module("tasks.T01-orderbook-imbalance.alpha_relationship_report").build_relationship_context
 
         with tempfile.TemporaryDirectory() as directory:
             alpha_path = Path(directory) / "alpha.csv"
@@ -52,7 +53,7 @@ class AlphaRelationshipReportTests(unittest.TestCase):
         )
 
     def test_build_relationship_context_summarizes_forward_returns_by_alpha_bucket(self):
-        from reports.alpha_relationship_report import build_relationship_context
+        build_relationship_context = importlib.import_module("tasks.T01-orderbook-imbalance.alpha_relationship_report").build_relationship_context
 
         with tempfile.TemporaryDirectory() as directory:
             alpha_path = Path(directory) / "alpha.csv"
@@ -99,8 +100,8 @@ class AlphaRelationshipReportTests(unittest.TestCase):
         self.assertEqual(context.bucket_summaries[0].positive_rate, 1.0)
 
     def test_render_relationship_report_html_contains_scatter_and_bucket_data(self):
-        from reports.alpha_relationship_report import build_relationship_context
-        from reports.alpha_relationship_report import render_relationship_report_html
+        build_relationship_context = importlib.import_module("tasks.T01-orderbook-imbalance.alpha_relationship_report").build_relationship_context
+        render_relationship_report_html = importlib.import_module("tasks.T01-orderbook-imbalance.alpha_relationship_report").render_relationship_report_html
 
         with tempfile.TemporaryDirectory() as directory:
             alpha_path = Path(directory) / "alpha.csv"
@@ -142,7 +143,7 @@ class AlphaRelationshipReportTests(unittest.TestCase):
         self.assertIn('name: "bucket mean"', html)
 
     def test_build_relationship_context_rejects_sparse_price_data_for_short_horizon(self):
-        from reports.alpha_relationship_report import build_relationship_context
+        build_relationship_context = importlib.import_module("tasks.T01-orderbook-imbalance.alpha_relationship_report").build_relationship_context
 
         with tempfile.TemporaryDirectory() as directory:
             alpha_path = Path(directory) / "alpha.csv"

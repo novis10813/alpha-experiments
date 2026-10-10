@@ -11,7 +11,7 @@ credible, and structural cleanup should support a proven workflow.
 
 Current research priorities are in [Current Research Focus](research/current-focus.md).
 Standing rules are in [`AGENTS.md`](../AGENTS.md) and the
-[repository guide](repository-guide.md).
+[repository guide](../AGENTS.md).
 
 ## Milestone 1: Establish experiment credibility (complete)
 
@@ -20,12 +20,12 @@ The three OpenEvolve smoke runs (BTC, ETH, BNB, 30 iterations each) remain
 
 | Item | Outcome | Record |
 | --- | --- | --- |
-| 1.1 Diagnose the backtest harness | Fixed baselines and a discovery-only diagnostic command. | [Harness diagnostic](research/discovery-harness-diagnostic.md) |
-| 1.2 Align discovery and promotion execution | Fast profile screens candidates. Executable discovery (one-second quotes, one-second delay) sets final rank and must reproduce exactly. | [Execution parity](research/execution-parity.md) |
-| 1.3 Cost and delay sensitivity | Fees 0/5/10/15 bps, delays 0/1/5 s as diagnostics. BTC and ETH are cost-fragile. BNB is negative before fees. | [Cost and delay sensitivity](research/cost-delay-sensitivity.md) |
-| 1.4 Review eligibility gates | 10 to 30 trade thresholds give identical eligible sets. Rule stays at 20 closed positions and four active folds. | [Eligibility audit](research/eligibility-gate-audit.md) |
-| 1.5 Discovery promotion gates | Machine-enforced. All smoke runs were rejected before validation loading. | [Promotion protocol](research/promotion-protocol.md) |
-| 1.6 Protect validation and holdout | Family IDs, family-level ledger, one-time holdout lock, research statuses. | [Experiment ledger](research/experiment-ledger.md) |
+| 1.1 Diagnose the backtest harness | Fixed baselines and a discovery-only diagnostic command. | [Harness diagnostic](../tasks/T05-evolution-credibility/REPORT.md#discovery-harness-diagnostic) |
+| 1.2 Align discovery and promotion execution | Fast profile screens candidates. Executable discovery (one-second quotes, one-second delay) sets final rank and must reproduce exactly. | [Execution parity](../tasks/T05-evolution-credibility/REPORT.md#discovery-execution-parity) |
+| 1.3 Cost and delay sensitivity | Fees 0/5/10/15 bps, delays 0/1/5 s as diagnostics. BTC and ETH are cost-fragile. BNB is negative before fees. | [Cost and delay sensitivity](../tasks/T05-evolution-credibility/REPORT.md#discovery-cost-and-delay-sensitivity) |
+| 1.4 Review eligibility gates | 10 to 30 trade thresholds give identical eligible sets. Rule stays at 20 closed positions and four active folds. | [Eligibility audit](../tasks/T05-evolution-credibility/REPORT.md#discovery-eligibility-gate-audit) |
+| 1.5 Discovery promotion gates | Machine-enforced. All smoke runs were rejected before validation loading. | [Promotion protocol](../evolution/docs/promotion-protocol.md) |
+| 1.6 Protect validation and holdout | Family IDs, family-level ledger, one-time holdout lock, research statuses. | [Experiment ledger](../evolution/docs/experiment-ledger.md) |
 
 ## Milestone 2: Improve search capability
 
@@ -94,7 +94,7 @@ end-of-bucket timestamps and no future data.
 Expand discovery to preregistered periods covering different volatility and trend
 conditions. Keep folds chronological and validation and holdout unchanged.
 
-- [x] A documented extended discovery calendar ([Market Regime Characterization](research/market-regime-characterization.md))
+- [x] A documented extended discovery calendar ([Market Regime Characterization](../tasks/T07-market-regime/REPORT.md#market-regime-characterization))
 - [x] Dataset manifests and hashes for every fold (supplemental audit reports under `outputs/evolution-diagnostics/`)
 - [ ] Sharpe uncertainty and concentration diagnostics (bootstrap, day and fold removal)
 - [ ] A multiple-testing warning tied to the effective search budget
@@ -156,7 +156,7 @@ network.
 
 ### 3.5 Repository preflight
 
-One command that checks tests, credentials, staged artifacts (`.env`, `.local/`,
+One command that checks tests, credentials, staged artifacts (`.env`, `data/`,
 checkpoints, outputs), split overlap, dataset schema and hashes, image and lock
 currency, and treats prompt diff markers as intentional content.
 

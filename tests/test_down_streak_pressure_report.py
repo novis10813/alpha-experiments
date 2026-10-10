@@ -1,3 +1,4 @@
+import importlib
 import tempfile
 import unittest
 from pathlib import Path
@@ -5,7 +6,7 @@ from pathlib import Path
 
 class DownStreakPressureReportTests(unittest.TestCase):
     def test_build_context_screens_costs_and_regimes_for_down_streak_events(self):
-        from reports.down_streak_pressure_report import build_down_streak_context
+        build_down_streak_context = importlib.import_module("tasks.T02-down-streak-pressure.down_streak_pressure_report").build_down_streak_context
 
         with tempfile.TemporaryDirectory() as directory:
             price_path = Path(directory) / "prices.csv"
@@ -132,8 +133,8 @@ class DownStreakPressureReportTests(unittest.TestCase):
         self.assertIn("trend_down", density_groups)
 
     def test_render_report_html_contains_screen_data(self):
-        from reports.down_streak_pressure_report import build_down_streak_context
-        from reports.down_streak_pressure_report import render_down_streak_report_html
+        build_down_streak_context = importlib.import_module("tasks.T02-down-streak-pressure.down_streak_pressure_report").build_down_streak_context
+        render_down_streak_report_html = importlib.import_module("tasks.T02-down-streak-pressure.down_streak_pressure_report").render_down_streak_report_html
 
         with tempfile.TemporaryDirectory() as directory:
             price_path = Path(directory) / "prices.csv"

@@ -30,7 +30,7 @@ from evolution.spec import LEGACY_EXECUTION_CONTRACT
 from evolution.spec import TRUSTED_INTRADAY_EXECUTION_CONTRACT
 from evolution.spec import run_directory
 from evolution.spec import validate_execution_contract
-from data.nautilus_catalog import _load_dotenv
+from common.nautilus_catalog import _load_dotenv
 
 
 @dataclass(frozen=True)

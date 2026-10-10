@@ -12,14 +12,12 @@ wheels/
 # Local secrets
 .env
 
-.env
+# Datasets, dataset manifests, and governance ledgers
+data/
 
-# Generated experiment outputs
+# Generated outputs and logs
 outputs/*
 !outputs/README.md
-
-# Local runtime material: evolution datasets, governance ledgers, build logs
-.local/
 
 # Agent workspace (session artifacts, tasks)
 .pi/

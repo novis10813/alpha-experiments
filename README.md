@@ -6,7 +6,7 @@ holdout splits stay behind machine-enforced promotion gates.
 
 ## Start here
 
-- [Repository guide](docs/repository-guide.md): layout, data and artifact rules,
+- [Repository guide](AGENTS.md): layout, data and artifact rules,
   and commands.
 - [Current research focus](docs/research/current-focus.md): research state and
   next work.
@@ -20,4 +20,4 @@ uv sync
 uv run python -m unittest discover -s tests
 ```
 
-Catalog-backed commands need the settings in [`data/README.md`](data/README.md).
+Catalog-backed commands need the settings in [`AGENTS.md`](AGENTS.md#data-and-outputs).

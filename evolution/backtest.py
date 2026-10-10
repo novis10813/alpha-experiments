@@ -25,7 +25,7 @@ from evolution.spec import FEE_RATE
 from evolution.spec import LEGACY_EXECUTION_CONTRACT
 from evolution.spec import STARTING_BALANCE_USDT
 from evolution.spec import validate_execution_contract
-from data.orderbook_quotes import QuoteRow
+from common.orderbook_quotes import QuoteRow
 from nautilus_trader.backtest.engine import BacktestEngine
 from nautilus_trader.backtest.engine import BacktestEngineConfig
 from nautilus_trader.common.config import LoggingConfig

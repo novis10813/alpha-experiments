@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Iterable
 
 from common.csv_io import write_dataclass_csv
-from data.nautilus_catalog import make_catalog
+from common.nautilus_catalog import make_catalog
 from nautilus_trader.model.data import OrderBookDepth10
 
 

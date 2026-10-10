@@ -29,7 +29,7 @@ FAMILY_REGISTRY: dict[str, EvolutionFamily] = {
         ),
         allowed_instruments=("BTCUSDT.BINANCE", "ETHUSDT.BINANCE"),
         seed_program=_FAMILY_ROOT / "trend-flow-confirmation-v1" / "initial_program.py",
-        preregistration=Path("docs/research/families/trend-flow-confirmation-v1.md"),
+        preregistration=Path("evolution/families/trend-flow-confirmation-v1/README.md"),
         prompt_context=(
             "Family: trend-flow-confirmation-v1\n"
             "Hypothesis: medium-horizon upward price state predicts continuation only when "
@@ -59,7 +59,7 @@ FAMILY_REGISTRY: dict[str, EvolutionFamily] = {
         ),
         allowed_instruments=("BTCUSDT.BINANCE",),
         seed_program=_FAMILY_ROOT / "down-streak-risk-off-btc-v1" / "initial_program.py",
-        preregistration=Path("docs/research/families/down-streak-risk-off-btc-v1.md"),
+        preregistration=Path("evolution/families/down-streak-risk-off-btc-v1/README.md"),
         prompt_context=(
             "Family: down-streak-risk-off-btc-v1\n"
             "Hypothesis: persistent downside price and signed-flow pressure identifies periods "
@@ -88,7 +88,7 @@ FAMILY_REGISTRY: dict[str, EvolutionFamily] = {
         ),
         allowed_instruments=("BTCUSDT.BINANCE", "ETHUSDT.BINANCE"),
         seed_program=_FAMILY_ROOT / "pullback-exhaustion-v1" / "initial_program.py",
-        preregistration=Path("docs/research/families/pullback-exhaustion-v1.md"),
+        preregistration=Path("evolution/families/pullback-exhaustion-v1/README.md"),
         prompt_context=(
             "Family: pullback-exhaustion-v1\n"
             "Hypothesis: inside a positive broad trend, waiting for a short pullback and "

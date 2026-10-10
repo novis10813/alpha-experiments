@@ -5,7 +5,7 @@ from pathlib import Path
 
 class KbarReturnReportTests(unittest.TestCase):
     def test_build_kbar_context_aggregates_ohlc_and_returns(self):
-        from reports.kbar_return_report import build_kbar_context
+        from analysis.kbar_return_report import build_kbar_context
 
         with tempfile.TemporaryDirectory() as directory:
             price_path = Path(directory) / "prices.csv"
@@ -44,7 +44,7 @@ class KbarReturnReportTests(unittest.TestCase):
         self.assertAlmostEqual(second.close_to_close_return, 3 / 98)
 
     def test_build_kbar_context_rejects_mixed_instruments(self):
-        from reports.kbar_return_report import build_kbar_context
+        from analysis.kbar_return_report import build_kbar_context
 
         with tempfile.TemporaryDirectory() as directory:
             price_path = Path(directory) / "prices.csv"
@@ -63,8 +63,8 @@ class KbarReturnReportTests(unittest.TestCase):
                 build_kbar_context(price_path, interval_seconds=60)
 
     def test_render_kbar_report_html_contains_scatter_and_violin(self):
-        from reports.kbar_return_report import build_kbar_context
-        from reports.kbar_return_report import render_kbar_report_html
+        from analysis.kbar_return_report import build_kbar_context
+        from analysis.kbar_return_report import render_kbar_report_html
 
         with tempfile.TemporaryDirectory() as directory:
             price_path = Path(directory) / "prices.csv"

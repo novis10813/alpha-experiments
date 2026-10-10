@@ -1,3 +1,4 @@
+import importlib
 import tempfile
 import unittest
 from pathlib import Path
@@ -5,7 +6,7 @@ from pathlib import Path
 
 class TradeDensityReportTests(unittest.TestCase):
     def test_build_density_context_summarizes_low_and_high_density_regimes(self):
-        from reports.trade_density_report import build_density_context
+        build_density_context = importlib.import_module("tasks.T01-orderbook-imbalance.trade_density_report").build_density_context
 
         with tempfile.TemporaryDirectory() as directory:
             alpha_path = Path(directory) / "alpha.csv"
@@ -54,8 +55,8 @@ class TradeDensityReportTests(unittest.TestCase):
         )
 
     def test_render_density_report_html_contains_regime_data(self):
-        from reports.trade_density_report import build_density_context
-        from reports.trade_density_report import render_density_report_html
+        build_density_context = importlib.import_module("tasks.T01-orderbook-imbalance.trade_density_report").build_density_context
+        render_density_report_html = importlib.import_module("tasks.T01-orderbook-imbalance.trade_density_report").render_density_report_html
 
         with tempfile.TemporaryDirectory() as directory:
             alpha_path = Path(directory) / "alpha.csv"
