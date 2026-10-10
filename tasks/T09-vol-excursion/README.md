@@ -25,3 +25,7 @@ uv run python -m tasks.T09-vol-excursion.observe_excursion   # -> outputs/T09-vo
 | `checks.csv` | Preregistered checks C1 (magnitude) and C2 (direction) with per-block values |
 | `samples_non_overlap.csv` | Non-overlapping samples behind the main table |
 | `run.json` | Costs, thresholds, blocks, and dataset manifest hashes |
+
+REPORT.md numbers come from `by_decile.csv` (`sample=non_overlap`, columns
+`p_touch_v1x2`, `p_end_v1x2`, `t_touch_med_v1x2`, `p_up_first_v1x2`, `p_touch_hl_v1x2`)
+and `checks.csv` (C2 share = 0.5 + `pooled`).
