@@ -61,6 +61,7 @@ evolution/families/<id>/                 family preregistration (README.md) and 
 scripts/                                 shared entry points (run as `python -m scripts.<name>`)
 analysis/                                analysis tools used by two or more tasks
 docs/                                    research framework, current focus, roadmap, alpha format, literature
+tasks/README.md                          task index: status and report per task
 tasks/T<NN>-<name>/
   REPORT.md                              results only
   README.md                              how to reproduce: commands, configs, code changes
@@ -76,11 +77,6 @@ outputs/                                 git-ignored: generated outputs and logs
   argument or config key whose default keeps the original behaviour, so every earlier result
   still reproduces from `main`. Changes that only affect logging or which files are kept need
   no switch.
-- Evolution experiments are tasks. Changes to the evolution runtime or its protocols are
-  `chore/` work, or part of the task that needs them under the rule above.
-- New evolution families go in new `evolution/families/<id>/` directories, not in edits to
-  existing families. A family's `README.md` bytes are hashed into its signal diagnostics:
-  editing it changes results.
 - A task's analysis script moves to `analysis/` only when a second task needs it. The same PR
   updates the commands in earlier tasks' READMEs.
 - Task modules import siblings relatively (`from .module import ...`), because the task
@@ -142,32 +138,23 @@ Before reporting completion, confirm that only intended files changed.
 ## Instruction index
 
 - [`research/AGENTS.md`](research/AGENTS.md): literature registry and scout.
+- [`evolution/AGENTS.md`](evolution/AGENTS.md): evolution runtime, families, protocols, and boundaries.
 
 When a directory needs its own rules, add an `AGENTS.md` there and list it here.
 
 ## Tasks
 
 T01 to T08 predate these rules. They have no `task/` branch, `exp/` tags or release, and
-their notes were split into `REPORT.md` and `README.md` during the migration.
-
-| Task | Branch | Status |
-|---|---|---|
-| T01 Order book imbalance feature | pre-migration (`main`) | `feature_candidate`, report in `tasks/T01-orderbook-imbalance/` |
-| T02 Down-streak pressure | pre-migration (`main`) | `feature_candidate`, paused, report in `tasks/T02-down-streak-pressure/` |
-| T03 Five green streak | pre-migration (`main`) | `idea`, paused, report in `tasks/T03-five-green-streak/` |
-| T04 OBI MA spread | pre-migration (`main`) | `idea`, paused, report in `tasks/T04-obi-ma-spread/` |
-| T05 Evolution credibility (Milestone 1) | pre-migration (`main`) | complete, report in `tasks/T05-evolution-credibility/` |
-| T06 Evolution hypothesis families | pre-migration (`main`) | report in `tasks/T06-evolution-families/` |
-| T07 Market regime | pre-migration (`main`) | rule v2 generated, report in `tasks/T07-market-regime/` |
-| T08 Observation studies A1-A3 | pre-migration (`main`) | A3 `rejected`, report in `tasks/T08-observation-studies/` |
+their notes were split into `REPORT.md` and `README.md` during the migration. Status and
+report per task: [`tasks/README.md`](tasks/README.md).
 
 Current research state and next work: [`docs/research/current-focus.md`](docs/research/current-focus.md).
 
 ---
 
-# Repository guide (pending revision)
+# Repository guide
 
-Carried over from `docs/repository-guide.md` with paths updated. Rules above win on conflict.
+Rules above win on conflict.
 
 ## Purpose and non-purpose
 
@@ -184,12 +171,6 @@ assumption-specific.
 - **Dependencies:** declare them in `pyproject.toml`, run `uv sync`, and keep
   `uv.lock` in step.
 - **Catalog:** see [Data and outputs](#data-and-outputs).
-- **Evolution:** `evolve` and `resume` use the self-hosted idlab vLLM endpoint
-  and `qwen3.8-27b` from `evolution/configs/base.yaml`. Set `VLLM_API_KEY` outside
-  the repository only if the endpoint requires it. `--iterations` is a total
-  target, and `resume` defaults to the last approved target. New runs never
-  overwrite existing run directories. Legacy runs without identity snapshots
-  cannot resume safely.
 - **Literature scout:** set `OPENROUTER_API_KEY`, and optionally `S2_API_KEY`,
   outside the repository.
 
@@ -202,7 +183,7 @@ Never copy secret values into code, docs, fixtures, logs, or examples.
 | `data/` | Evolution datasets, manifests, and governance ledgers. | yes |
 | `outputs/` | Generated alpha exports, market extracts, reports, diagnostics, evolution runs, and logs. | yes, except `outputs/README.md` |
 | `.pi/` | Agent workspace. | yes |
-| `.worktrees/` | Agent worktrees. | no, only untracked |
+| `.worktrees/` | Agent worktrees. | yes |
 
 Do not scan, summarize, or commit the contents of `data/`, `.pi/`, or
 `.worktrees/`. Before creating a new local artifact path, confirm it with
@@ -215,31 +196,3 @@ conversion jobs, write to S3, or require the homestack Docker network. MinIO nee
 path-style requests: the helper keeps `addressing_style=path` and
 `virtual_hosted_style_request=false`, and the `fs_rust_storage_options` endpoint
 key must be `endpoint_url`.
-
-## Evolution boundaries
-
-Discovery folds support repeated search and diagnosis. Validation selects from a
-preregistered candidate set only after executable discovery qualification passes.
-Holdout evaluates the validation champion once, under a family-level lock. Do not
-use validation or holdout artifacts, results, or data to guide a hypothesis,
-feature, fitness rule, or search configuration. Machine gates, not documentation
-or operator intent, control access.
-
-Details: [evolution guide](evolution/docs/strategy-evolution.md),
-[promotion protocol](evolution/docs/promotion-protocol.md), and
-[experiment ledger](evolution/docs/experiment-ledger.md).
-
-## Evolution sandbox
-
-Build the evolution sandbox image and point the runner at it:
-
-```bash
-docker build -f evolution/docker/Dockerfile -t alpha-evolution-sandbox:0.2 .
-EVOLUTION_SANDBOX_IMAGE=alpha-evolution-sandbox:0.2 \
-  uv run python -m evolution --help
-```
-
-The image build uses `uv sync --frozen --no-dev` and copies only the sandbox
-runtime packages. A full evolution run also needs schema-v2 discovery data and
-idlab vLLM access. Use `--dataset-root data/evolution-data-v2` for the existing
-v2 catalogs. Do not relabel v1 manifests to pass preflight.
