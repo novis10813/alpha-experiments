@@ -12,6 +12,21 @@ This document describes how to reproduce REPORT.md. All commands run from the re
 
 The supplemental splits use `data/evolution-data-supplemental`. Inputs are local discovery split files only; the characterization requires no catalog access, network, validation, or holdout data. Regime math uses only `close` and `ts_event` from `EvolutionMarketState`.
 
+## Build the supplemental splits
+
+`build_supplemental.sh` builds and audits `discovery_supplemental_20260905_20260921`
+(BTC) and `discovery_supplemental_20260829_20260921` (ETH, BNB) from the catalog
+(catalog env required). It writes the splits to `data/evolution-data-supplemental/`,
+the audits to `outputs/evolution-diagnostics/supplemental-audit-<split>-<symbol>.json`,
+and the log to `outputs/logs/build-supplemental-20260921.log`.
+
+```bash
+tasks/T07-market-regime/build_supplemental.sh
+```
+
+The BTC splits `discovery_supplemental_20260829_20260830` and
+`discovery_supplemental_20260830_20260905` have no recorded build command.
+
 ## Reproduction
 
 ```bash
