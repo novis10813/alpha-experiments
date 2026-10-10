@@ -16,7 +16,8 @@ Definitions, thresholds, and the preregistered checks are in the docstring of
 ## Commands and outputs
 
 ```bash
-uv run python -m tasks.T09-vol-excursion.observe_excursion   # -> outputs/T09-vol-excursion/excursion-v1/
+uv run python -m tasks.T09-vol-excursion.observe_excursion      # -> outputs/T09-vol-excursion/excursion-v1/
+uv run python -m tasks.T09-vol-excursion.observe_continuation   # -> outputs/T09-vol-excursion/excursion-v2/
 ```
 
 | File | Content |
@@ -25,6 +26,15 @@ uv run python -m tasks.T09-vol-excursion.observe_excursion   # -> outputs/T09-vo
 | `checks.csv` | Preregistered checks C1 (magnitude) and C2 (direction) with per-block values |
 | `samples_non_overlap.csv` | Non-overlapping samples behind the main table |
 | `run.json` | Costs, thresholds, blocks, and dataset manifest hashes |
+
+`excursion-v2` (`observe_continuation.py`) writes:
+
+| File | Content |
+| --- | --- |
+| `events.csv` | One row per breakout event: side, decile at the breakout, continuation outcome, trade gross and net |
+| `summary.csv` | Continuation rates and trade results per instrument, b, h, and group (all, decile 9-10) |
+| `by_decile.csv` | The same per rv_60 decile |
+| `checks.csv` | Preregistered checks C3 (direction) and C4 (economics) |
 
 REPORT.md numbers come from `by_decile.csv` (`sample=non_overlap`, columns
 `p_touch_v1x2`, `p_end_v1x2`, `t_touch_med_v1x2`, `p_up_first_v1x2`, `p_touch_hl_v1x2`)
