@@ -61,6 +61,7 @@ evolution/families/<id>/                 family preregistration (README.md) and 
 scripts/                                 shared entry points (run as `python -m scripts.<name>`)
 analysis/                                analysis tools used by two or more tasks
 docs/                                    research framework, current focus, roadmap, alpha format, literature
+tasks/README.md                          task index: status and report per task
 tasks/T<NN>-<name>/
   REPORT.md                              results only
   README.md                              how to reproduce: commands, configs, code changes
@@ -144,26 +145,16 @@ When a directory needs its own rules, add an `AGENTS.md` there and list it here.
 ## Tasks
 
 T01 to T08 predate these rules. They have no `task/` branch, `exp/` tags or release, and
-their notes were split into `REPORT.md` and `README.md` during the migration.
-
-| Task | Branch | Status |
-|---|---|---|
-| T01 Order book imbalance feature | pre-migration (`main`) | `feature_candidate`, report in `tasks/T01-orderbook-imbalance/` |
-| T02 Down-streak pressure | pre-migration (`main`) | `feature_candidate`, paused, report in `tasks/T02-down-streak-pressure/` |
-| T03 Five green streak | pre-migration (`main`) | `idea`, paused, report in `tasks/T03-five-green-streak/` |
-| T04 OBI MA spread | pre-migration (`main`) | `idea`, paused, report in `tasks/T04-obi-ma-spread/` |
-| T05 Evolution credibility (Milestone 1) | pre-migration (`main`) | complete, report in `tasks/T05-evolution-credibility/` |
-| T06 Evolution hypothesis families | pre-migration (`main`) | report in `tasks/T06-evolution-families/` |
-| T07 Market regime | pre-migration (`main`) | rule v2 generated, report in `tasks/T07-market-regime/` |
-| T08 Observation studies A1-A3 | pre-migration (`main`) | A3 `rejected`, report in `tasks/T08-observation-studies/` |
+their notes were split into `REPORT.md` and `README.md` during the migration. Status and
+report per task: [`tasks/README.md`](tasks/README.md).
 
 Current research state and next work: [`docs/research/current-focus.md`](docs/research/current-focus.md).
 
 ---
 
-# Repository guide (pending revision)
+# Repository guide
 
-This section is the only copy of the former `docs/repository-guide.md`. Rules above win on conflict.
+Rules above win on conflict.
 
 ## Purpose and non-purpose
 
