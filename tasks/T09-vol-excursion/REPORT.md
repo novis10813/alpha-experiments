@@ -181,19 +181,21 @@ state. Price and `rv_60` alone give no direction edge on this spot data.
 
 - C5 failed in all 24 cells. Flow has no consistent sign. OBI is positive on BTC
   and ETH and negative on BNB: four cells have two passing instruments, but each
-  pair has opposite signs (BTC positive, BNB negative).
-- On BTC and ETH, confirming OBI raises continuation by 0.02 to 0.14. ETH
+  pair has opposite signs (BTC or ETH positive, BNB negative).
+- Confirming OBI raises continuation in 11 of 12 OBI cells on BTC and 12 of 12
+  on ETH, by up to 0.14. ETH
   `obi_60` at b = 20 bps passes 6 of 7 blocks at every horizon (+0.04 at each).
-  The confirm group still stays near 0.5 (0.47 to 0.58), below the 0.625 that b =
+  The confirm group still stays near 0.5 (0.45 to 0.58), below the 0.625 that b =
   40 bps needs under v2 cost.
 - C6 failed. 11 of 432 instrument configs have positive v2 net, none has t >= 2,
-  and the largest of those 11 have 19 to 32 trades. The best config with at least
+  and the four largest have 19 to 32 trades. The best config with at least
   100 trades is +1.7 bps (ETH, `obi_60`, b = 60, h = 240, decile 9-10, t = 0.27).
 
 Descriptive, using full-sample quintiles of the aligned feature (not a pass rule):
 at b = 40 bps, events whose `obi_60` most strongly opposes the breakout
-(quintile 1) continue in 0.34 to 0.41 of resolved cases on BTC and ETH. That is a
-reversal share of 0.59 to 0.66, around the 0.625 a fade needs. BNB shows no such
+(quintile 1) continue in 0.34 to 0.41 of resolved cases on BTC at 30 and 60 min
+and on ETH at all horizons (BTC at 240 min: 0.46). That is a reversal share of
+0.59 to 0.66, around the 0.625 a fade needs. BNB shows no such
 pattern (0.56 to 0.66 in quintile 1).
 
 ### Conclusion
