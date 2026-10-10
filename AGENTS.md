@@ -102,6 +102,10 @@ outputs/                                 git-ignored: generated outputs and logs
   belong in diagnostics or backtests. See [`docs/alpha-signal-format.md`](docs/alpha-signal-format.md).
 - Literature scout output is staging only, not strategy evidence. See
   [`research/AGENTS.md`](research/AGENTS.md).
+- Each experiment answers the task's stated question, not the cheapest next test built from
+  earlier results or existing features, and every definition that drives its conclusion
+  (event, reference price, entry, exit, thresholds) is explained to and agreed with the user
+  before it runs.
 
 ## Data and outputs
 
