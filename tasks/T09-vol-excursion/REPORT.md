@@ -1,7 +1,8 @@
 # T09: Volatility State and Forward Excursion
 
-Status: in progress. Run `excursion-v1` is descriptive, with preregistered check
-C1 (magnitude) passed and C2 (direction) failed.
+Status: in progress. `excursion-v1` is descriptive: C1 (magnitude) passed and C2
+(direction) failed. `excursion-v2` (continuation after the first touch) is
+`rejected`: C3 and C4 failed.
 
 ## Question
 
@@ -95,8 +96,62 @@ mid values above are the main estimate.
 
 High volatility tells when a 40 bps barrier will be reached, and that is stable
 across blocks and instruments. It does not tell which side is reached first, so
-symmetric barriers entered at t have no gross edge in any state. A tradable rule
-needs a second step: what the path does after the first touch.
+symmetric barriers entered at t have no gross edge in any state. `excursion-v2`
+tested the next step, continuation after the first touch, and found none.
+
+## excursion-v2: continuation after the first touch
+
+### Setup
+
+- Breakout events, sequential and non-overlapping: the first minute that mid moves
+  b away from a reference price within h minutes. Side = direction of that move.
+- Continuation: from the breakout mid, whether the price moves a further b in the
+  same direction before b back, within h. A random walk gives 0.5.
+- Trade: enter one minute after the breakout at the ask (long) or bid (short),
+  same barriers, exit at the bid or ask. Fees 5 bps per side (draft v2 taker) and
+  10 bps (v1).
+- Grid: b = 20, 40, 60 bps (1 to 3 x v1 cost), h = 30, 60, 240 min, all events and
+  `rv_60` decile 9-10 at the breakout.
+- Trials: C3 9 cells, C4 54 configs.
+
+### Continuation is not above 0.5
+
+Decile 9-10 at b = 40 bps. Continuation share of resolved events, mean gross and
+v2 net per trade in bps:
+
+| Instrument | h | Events | Continuation | Gross | Net v2 |
+| --- | --- | --- | --- | --- | --- |
+| BTC | 30 | 245 | 0.457 | -3.6 | -13.6 |
+| BTC | 60 | 226 | 0.462 | -1.8 | -11.8 |
+| BTC | 240 | 222 | 0.516 | 1.6 | -8.4 |
+| ETH | 30 | 311 | 0.468 | -1.5 | -11.5 |
+| ETH | 60 | 302 | 0.467 | 0.6 | -9.4 |
+| ETH | 240 | 310 | 0.461 | 2.6 | -7.4 |
+| BNB | 30 | 224 | 0.553 | 5.2 | -4.8 |
+| BNB | 60 | 212 | 0.541 | 4.7 | -5.3 |
+| BNB | 240 | 213 | 0.435 | -2.1 | -12.1 |
+
+With symmetric barriers, breakeven continuation is
+
+$$
+p^* = 0.5 + \frac{\text{round-trip cost}}{2b}
+$$
+
+which is 0.625 at b = 40 bps under v2 fees. No cell comes close.
+
+- C3 failed. Only ETH at 60 and 240 min kept the same side of 0.5 in 5 of 6
+  blocks, both below 0.5 (0.467 and 0.461). No horizon has two instruments.
+- C4 failed. None of the 54 configs has positive v2 net. The best per instrument
+  is -1.8 bps (ETH, b = 60, h = 240, decile 9-10), -4.8 bps (BNB), and -7.2 bps
+  (BTC). Gross per trade ranges from -10.3 to +8.2 bps across the grid.
+- At b = 20 bps, with 1,334 to 2,111 events per cell, continuation is 0.47 to 0.49
+  on every instrument and horizon. That is a slight reversal, far below the 1.0
+  that a 20 bps barrier would need under v1 cost.
+
+### Conclusion
+
+After a first touch the path is again close to a coin flip, in every volatility
+state. Price and `rv_60` alone give no direction edge on this spot data.
 
 ## Limitations
 
