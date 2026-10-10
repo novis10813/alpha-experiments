@@ -65,3 +65,8 @@ and `checks.csv` (C2 share = 0.5 + `pooled`).
 excursion-v2 numbers come from its `summary.csv` (`k=2`, `group=dec9_10` for the
 table, all rows for the ranges) and `checks.csv`. Breakeven continuation uses
 round-trip cost 2 x 5 bps.
+
+excursion-v3 numbers come from `checks.csv` (C5, C6_total), `c5_direction.csv`
+(confirm and oppose shares, block counts), `c6_economics.csv` (configs with
+positive `mean_net_v2`, best config with `n >= 100`), and `quintiles.csv`
+(`k=2`, `feature=obi_60`, quintile 1).

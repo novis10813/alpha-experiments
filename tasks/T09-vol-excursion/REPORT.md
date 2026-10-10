@@ -2,7 +2,9 @@
 
 Status: in progress. `excursion-v1` is descriptive: C1 (magnitude) passed and C2
 (direction) failed. `excursion-v2` (continuation after the first touch) is
-`rejected`: C3 and C4 failed.
+`rejected`: C3 and C4 failed. `excursion-v3` (flow and OBI at the breakout) is
+`rejected`: C5 and C6 failed, with an OBI pattern on BTC and ETH recorded below as
+a hypothesis.
 
 ## Question
 
@@ -153,8 +155,59 @@ which is 0.625 at b = 40 bps under v2 fees. No cell comes close.
 After a first touch the path is again close to a coin flip, in every volatility
 state. Price and `rv_60` alone give no direction edge on this spot data.
 
+## excursion-v3: flow and order book imbalance at the breakout
+
+### Setup
+
+- Data: the six blocks above plus an August discovery supplement, 2026-07-25 to
+  2026-08-27 (34 days, coverage audit passed), as a seventh block. Data from
+  2026-09-21 onward is reserved as out-of-sample and was not built.
+- Events, continuation, and the breakout-direction trade as in excursion-v2.
+- Features at the breakout minute, from data up to that minute: `flow_w`, net
+  taker buy volume over total volume, and `obi_w`, mean top-10-level order book
+  imbalance, over the trailing w = 15 or 60 minutes. Each is multiplied by the
+  breakout side. Positive means the feature supports the breakout (confirm),
+  negative means it opposes it (oppose).
+- C5 direction: continuation share of confirm minus oppose. An instrument passes
+  if the sign repeats in at least 6 of 7 blocks. A cell passes if at least 2
+  instruments pass with the same sign. 24 cells (4 features, 3 horizons, b = 20
+  or 40 bps).
+- C6 economics: follow the breakout when the feature confirms, fade it when the
+  feature opposes. Pass on an instrument: v2 net > 0, t >= 2, at least 5 of 7
+  blocks positive, n >= 30. Candidate if the same config passes on at least 2
+  instruments. 144 configs per instrument.
+
+### Results
+
+- C5 failed in all 24 cells. Flow has no consistent sign. OBI is positive on BTC
+  and ETH and negative on BNB: four cells have two passing instruments, but each
+  pair has opposite signs (BTC positive, BNB negative).
+- On BTC and ETH, confirming OBI raises continuation by 0.02 to 0.14. ETH
+  `obi_60` at b = 20 bps passes 6 of 7 blocks at every horizon (+0.04 at each).
+  The confirm group still stays near 0.5 (0.47 to 0.58), below the 0.625 that b =
+  40 bps needs under v2 cost.
+- C6 failed. 11 of 432 instrument configs have positive v2 net, none has t >= 2,
+  and the largest of those 11 have 19 to 32 trades. The best config with at least
+  100 trades is +1.7 bps (ETH, `obi_60`, b = 60, h = 240, decile 9-10, t = 0.27).
+
+Descriptive, using full-sample quintiles of the aligned feature (not a pass rule):
+at b = 40 bps, events whose `obi_60` most strongly opposes the breakout
+(quintile 1) continue in 0.34 to 0.41 of resolved cases on BTC and ETH. That is a
+reversal share of 0.59 to 0.66, around the 0.625 a fade needs. BNB shows no such
+pattern (0.56 to 0.66 in quintile 1).
+
+### Conclusion
+
+Flow at the breakout carries no information about continuation. OBI that opposes a
+breakout is followed by more reversals on BTC and ETH, but the effect is not
+consistent across instruments, does not pass the block rule, and is too small to
+pay v2 cost under the preregistered sign split. The strong-opposition fade is a
+hypothesis for a separate preregistered test with trailing thresholds, not a
+result.
+
 ## Limitations
 
 - Spot data as a proxy for the perpetual venue.
-- 51 days per instrument. The 240 min decile cells are small.
+- 51 days per instrument (85 in excursion-v3). The 240 min decile cells are
+  small.
 - Minute-close mid misses moves within the minute.
