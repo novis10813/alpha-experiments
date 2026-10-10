@@ -76,11 +76,6 @@ outputs/                                 git-ignored: generated outputs and logs
   argument or config key whose default keeps the original behaviour, so every earlier result
   still reproduces from `main`. Changes that only affect logging or which files are kept need
   no switch.
-- Evolution experiments are tasks. Changes to the evolution runtime or its protocols are
-  `chore/` work, or part of the task that needs them under the rule above.
-- New evolution families go in new `evolution/families/<id>/` directories, not in edits to
-  existing families. A family's `README.md` bytes are hashed into its signal diagnostics:
-  editing it changes results.
 - A task's analysis script moves to `analysis/` only when a second task needs it. The same PR
   updates the commands in earlier tasks' READMEs.
 - Task modules import siblings relatively (`from .module import ...`), because the task
@@ -142,6 +137,7 @@ Before reporting completion, confirm that only intended files changed.
 ## Instruction index
 
 - [`research/AGENTS.md`](research/AGENTS.md): literature registry and scout.
+- [`evolution/AGENTS.md`](evolution/AGENTS.md): evolution runtime, families, protocols, and boundaries.
 
 When a directory needs its own rules, add an `AGENTS.md` there and list it here.
 
@@ -167,7 +163,7 @@ Current research state and next work: [`docs/research/current-focus.md`](docs/re
 
 # Repository guide (pending revision)
 
-Carried over from `docs/repository-guide.md` with paths updated. Rules above win on conflict.
+This section is the only copy of the former `docs/repository-guide.md`. Rules above win on conflict.
 
 ## Purpose and non-purpose
 
@@ -184,12 +180,6 @@ assumption-specific.
 - **Dependencies:** declare them in `pyproject.toml`, run `uv sync`, and keep
   `uv.lock` in step.
 - **Catalog:** see [Data and outputs](#data-and-outputs).
-- **Evolution:** `evolve` and `resume` use the self-hosted idlab vLLM endpoint
-  and `qwen3.8-27b` from `evolution/configs/base.yaml`. Set `VLLM_API_KEY` outside
-  the repository only if the endpoint requires it. `--iterations` is a total
-  target, and `resume` defaults to the last approved target. New runs never
-  overwrite existing run directories. Legacy runs without identity snapshots
-  cannot resume safely.
 - **Literature scout:** set `OPENROUTER_API_KEY`, and optionally `S2_API_KEY`,
   outside the repository.
 
@@ -215,31 +205,3 @@ conversion jobs, write to S3, or require the homestack Docker network. MinIO nee
 path-style requests: the helper keeps `addressing_style=path` and
 `virtual_hosted_style_request=false`, and the `fs_rust_storage_options` endpoint
 key must be `endpoint_url`.
-
-## Evolution boundaries
-
-Discovery folds support repeated search and diagnosis. Validation selects from a
-preregistered candidate set only after executable discovery qualification passes.
-Holdout evaluates the validation champion once, under a family-level lock. Do not
-use validation or holdout artifacts, results, or data to guide a hypothesis,
-feature, fitness rule, or search configuration. Machine gates, not documentation
-or operator intent, control access.
-
-Details: [evolution guide](evolution/docs/strategy-evolution.md),
-[promotion protocol](evolution/docs/promotion-protocol.md), and
-[experiment ledger](evolution/docs/experiment-ledger.md).
-
-## Evolution sandbox
-
-Build the evolution sandbox image and point the runner at it:
-
-```bash
-docker build -f evolution/docker/Dockerfile -t alpha-evolution-sandbox:0.2 .
-EVOLUTION_SANDBOX_IMAGE=alpha-evolution-sandbox:0.2 \
-  uv run python -m evolution --help
-```
-
-The image build uses `uv sync --frozen --no-dev` and copies only the sandbox
-runtime packages. A full evolution run also needs schema-v2 discovery data and
-idlab vLLM access. Use `--dataset-root data/evolution-data-v2` for the existing
-v2 catalogs. Do not relabel v1 manifests to pass preflight.
