@@ -183,7 +183,7 @@ Never copy secret values into code, docs, fixtures, logs, or examples.
 | `data/` | Evolution datasets, manifests, and governance ledgers. | yes |
 | `outputs/` | Generated alpha exports, market extracts, reports, diagnostics, evolution runs, and logs. | yes, except `outputs/README.md` |
 | `.pi/` | Agent workspace. | yes |
-| `.worktrees/` | Agent worktrees. | no, only untracked |
+| `.worktrees/` | Agent worktrees. | yes |
 
 Do not scan, summarize, or commit the contents of `data/`, `.pi/`, or
 `.worktrees/`. Before creating a new local artifact path, confirm it with

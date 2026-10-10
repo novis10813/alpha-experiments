@@ -21,3 +21,4 @@ outputs/*
 
 # Agent workspace (session artifacts, tasks)
 .pi/
+.worktrees/
