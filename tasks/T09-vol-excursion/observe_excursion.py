@@ -129,7 +129,7 @@ def checks(s: pd.DataFrame, blocks: list[str], **key) -> list[dict]:
         same = sum(1 for v in per if np.isfinite(v) and np.sign(v) == np.sign(pooled))
         rows.append({**key, "check": name, "pooled": pooled, "blocks_same_sign": same, "n_blocks": len(blocks),
                      "n_top": len(top), "n_top_touched": int(top.touched.sum()),
-                     "per_block": [None if not np.isfinite(v) else round(v, 3) for v in per]})
+                     "per_block": [None if not np.isfinite(v) else round(float(v), 3) for v in per]})
     return rows
 
 
