@@ -15,39 +15,17 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from nautilus_trader.persistence.catalog.parquet import ParquetDataCatalog
 
-from evolution.market_state import EvolutionMarketState
 from evolution.spec import FEE_RATE
-from analysis.market_regime_report import ALL_INSTRUMENTS, default_split_map
+from analysis.discovery_minutes import MIN_NS, load
+from analysis.market_regime_report import ALL_INSTRUMENTS
 
-MIN_NS = 60_000_000_000
 OUT = Path("outputs/observe-a2")
 DIR_H = 240
 MAG_HS = (30, 60)
 SIGNED = ["ret_15", "ret_60", "ret_240", "flow_15", "flow_60", "obi_15", "obi_60", "loc_240", "trend_240"]
 UNSIGNED = ["rv_15", "rv_60", "rv_240", "rv_ratio", "relvol_15", "reltrades_15", "abs_ret_60", "abs_flow_15",
             "abs_obi_15", "spread_15", "range_compress"]
-
-
-def load(inst: str) -> pd.DataFrame:
-    sm = default_split_map()[inst]
-    parts = [(sm.original_folds_root, s, s) for s in sm.original_folds] + [
-        (sm.supplemental_root, s, "supplemental") for s in sm.supplemental_splits
-    ]
-    rows = []
-    for root, split, block in parts:
-        for item in ParquetDataCatalog(root / split / inst).query(EvolutionMarketState, identifiers=[inst]):
-            s = item.data
-            rows.append((s.ts_event, block, s.close, s.high, s.low, s.best_bid, s.best_ask, s.spread_bps, s.volume,
-                         s.buy_volume, s.sell_volume, s.trade_count, s.depth10_obi_mean))
-    df = pd.DataFrame(rows, columns=["ts", "block", "close", "high", "low", "bid", "ask", "spread_bps", "volume",
-                                     "buy_vol", "sell_vol", "trades", "obi"])
-    df = df.drop_duplicates("ts").set_index("ts").sort_index()
-    grid = np.arange(df.index[0], df.index[-1] + MIN_NS, MIN_NS)
-    df = df.reindex(grid)  # full minute grid so rolling windows never bridge gaps
-    df["mid"] = np.where((df.bid > 0) & (df.ask > 0), (df.bid + df.ask) / 2, df.close)
-    return df
 
 
 def features(df: pd.DataFrame) -> pd.DataFrame:
