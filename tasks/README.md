@@ -12,4 +12,4 @@ Status and report for each task. Task rules: [`AGENTS.md`](../AGENTS.md#layout).
 | T06 Evolution hypothesis families | pre-migration (`main`) | `trend-flow-confirmation-v1`: `rejected` (holdout consumed, recorded 2026-09-21). `pullback-exhaustion-v1` and `down-streak-risk-off-btc-v1`: preregistered, no final status | [REPORT](T06-evolution-families/REPORT.md) |
 | T07 Market regime | pre-migration (`main`) | rule v2 generated | [REPORT](T07-market-regime/REPORT.md) |
 | T08 Observation studies A1-A3 | pre-migration (`main`) | A3 `rejected` | [REPORT](T08-observation-studies/REPORT.md) |
-| T09 Volatility state and forward excursion | `task/T09-vol-excursion` | in progress: C1 magnitude passed, C2 direction failed, vol-gate-v1 rv_60 gate measured | [REPORT](T09-vol-excursion/REPORT.md) |
+| T09 Volatility state and forward excursion | `task/T09-vol-excursion` | complete: C1 magnitude passed, C2 direction failed, vol-gate-v1 rv_60 gate measured | [REPORT](T09-vol-excursion/REPORT.md) |

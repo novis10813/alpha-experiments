@@ -1,6 +1,6 @@
 # T09: Volatility State and Forward Excursion
 
-Status: in progress. Run `excursion-v1` is descriptive, with preregistered check
+Status: complete. Run `excursion-v1` is descriptive, with preregistered check
 C1 (magnitude) passed and C2 (direction) failed. Run `vol-gate-v1` measures
 absolute volatility as a gate for other strategies: rv_60 ranks 30 and 60 min
 move size consistently, but at v1 cost a direction signal inside the gate still
